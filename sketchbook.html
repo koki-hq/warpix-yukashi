@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>喫茶ゆかし スケッチ帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #1a1214; --paper: #2b1d1c; --ink: #efe0bf; --dim: #b88b5e; --line: #3e2a24; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'DotGothic16', monospace; line-height: 1.7; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: .1em; }
+  h2 { font-size: 18px; margin: 48px 0 12px; color: var(--dim); border-bottom: 2px solid var(--line); padding-bottom: 4px; }
+  p.note { color: var(--dim); margin: 0 0 12px; font-size: 14px; }
+  canvas { image-rendering: pixelated; display: block; }
+  .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+  .swatch { background: var(--paper); padding: 6px; font-size: 12px; }
+  .swatch i { display: block; height: 40px; margin-bottom: 4px; }
+  .swatch b { color: var(--dim); font-weight: normal; margin-right: 6px; }
+  .times { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+  .times figure, .cast figure { margin: 0; background: var(--paper); padding: 10px; }
+  .times canvas { width: 100%; height: auto; }
+  figcaption { font-size: 14px; margin-top: 6px; }
+  figcaption.now::after { content: ' ← いま'; color: #f6cf72; }
+  .cast { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .cast figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .row { display: flex; align-items: flex-end; gap: 12px; }
+  .bubble { min-height: 3.4em; background: #faf4e4; color: #2b1d1c; padding: 10px 14px; border: 3px solid #1a1214; box-shadow: 4px 4px 0 #57392c; max-width: 560px; margin-top: 16px; }
+  #okuno-fig { cursor: pointer; }
+  a { color: #f6cf72; }
+</style>
+</head>
+<body>
+<main>
+  <h1>喫茶ゆかし スケッチ帳</h1>
+  <p class="note">店づくりの 作業台。ここで 色や 絵を 見ながら 相談する。<a href="./">店の 入口へ</a></p>
+
+  <h2>パレット（29色）</h2>
+  <p class="note">店の 絵は この 色だけで 描く。左の 記号は ドット絵の 文字列で 使う キー。</p>
+  <div class="palette" id="palette"></div>
+
+  <h2>時間帯の 光</h2>
+  <p class="note">同じ 店を 4つの 時間帯で。光は 段階に 丸めて 網点で ぼかしている。時計は 本当の 時刻。</p>
+  <div class="times" id="times"></div>
+
+  <h2>住人と 小物</h2>
+  <p class="note">左が 実寸、右が 拡大。おくのさんを クリックすると ひとりごと。</p>
+  <div class="cast" id="cast"></div>
+  <div class="bubble" id="bubble">……</div>
+</main>
+<script type="module" src="./src/sketchbook.js"></script>
+</body>
+</html>
