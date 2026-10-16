@@ -21,6 +21,9 @@ export const COUNTER_SPOTS = {
   notebook: { x: 262, y: 138, w: 20, h: 18 },
   cat: { x: 206, y: 132, w: 20, h: 18 },
   yukashi: { x: 280, y: 110, w: 14, h: 8 },
+  board: { x: 196, y: 64, w: 56, h: 28 },
+  clock: { x: 272, y: 70, w: 16, h: 16 },
+  sugar: { x: 110, y: 132, w: 15, h: 15 },
 };
 
 function ellipse(ctx, key, cx, cy, rx, ry, clip) {

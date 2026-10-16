@@ -36,6 +36,9 @@ export const SPOTS = {
   cup: { x: 168, y: 150, w: cup.w, h: cup.h },
   clock: { x: 120, y: 26, w: 16, h: 16 },
   jukebox: { x: 252, y: 74, w: 18, h: 48 },
+  map: { x: 110, y: 48, w: 34, h: 28 },
+  shelf: { x: SHELF.x, y: SHELF.y, w: SHELF.w, h: 104 },
+  window: { x: WIN.x, y: WIN.y, w: WIN.w, h: WIN.h },
   // 本棚に まぎれた、リボンの はみ出た 帳面。開くと スケッチ帳
   notebook: { x: SHELF.x + 26, y: SHELF.y + 2 + 17 * 2 - 13, w: 5, h: 17 },
 };

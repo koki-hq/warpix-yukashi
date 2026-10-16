@@ -22,7 +22,9 @@
     opacity: 0; transition: opacity .6s steps(4); pointer-events: none;
   }
   #bubble.show { opacity: 1; }
-  #bubble::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 8px; height: 8px; margin-left: -4px; background: #faf4e4; border: 3px solid #1a1214; border-top: 0; border-left: 0; transform: rotate(45deg); }
+  #bubble.aside { background: #efe0bf; color: #57392c; }
+  #bubble.aside::after { background: #efe0bf; }
+  #bubble::after { content: ''; position: absolute; left: var(--tail, 50%); bottom: -9px; width: 8px; height: 8px; margin-left: -4px; background: #faf4e4; border: 3px solid #1a1214; border-top: 0; border-left: 0; transform: rotate(45deg); }
   .below { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; min-height: 24px; font-size: 13px; color: var(--dim); }
   #hint { transition: opacity 1s; }
   #hint.gone { opacity: 0; }

@@ -531,9 +531,19 @@ export class Jukebox {
 
   // ---- 効果音（音楽を 止めていても 鳴る） ----
 
+  // 効果音の 出口
+  ensureSfx() {
+    if (!this.sfx) {
+      this.sfx = this.ctx.createGain();
+      this.sfx.gain.value = 0.5;
+      this.sfx.connect(this.ctx.destination);
+    }
+    return this.sfx;
+  }
+
   chime(midi, t, dur, vol) {
     const ctx = this.ctx;
-    this.sfx ??= (() => { const g = ctx.createGain(); g.gain.value = 0.5; g.connect(ctx.destination); return g; })();
+    this.ensureSfx();
     for (const [ratio, v] of [[1, 1], [2.76, 0.35], [5.4, 0.12]]) {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
@@ -554,6 +564,46 @@ export class Jukebox {
     await this.ctx.resume();
     const t = this.ctx.currentTime + 0.02;
     for (const [d, m, v] of [[0, 93, 0.14], [0.11, 98, 0.1], [0.3, 93, 0.08], [0.42, 98, 0.05]]) this.chime(m, t + d, 1.6, v);
+  }
+
+  // 窓の 外の 音（効果音と 同じく、音楽を 止めていても 鳴る）
+  async outside(kind) {
+    await this.ctx.resume();
+    const ctx = this.ctx;
+    const t = ctx.currentTime + 0.05;
+    this.ensureSfx();
+    if (kind === 'tram') {
+      // ちん、ちん：遠くの 路面電車の 鐘
+      this.chime(84, t, 1.4, 0.035);
+      this.chime(84, t + 0.32, 1.4, 0.03);
+    } else if (kind === 'bird') {
+      // 雀：短く 上がる 声を 二回
+      for (const d of [0, 0.22, 0.9, 1.1]) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(3200, t + d);
+        o.frequency.exponentialRampToValueAtTime(4600, t + d + 0.07);
+        g.gain.setValueAtTime(0, t + d);
+        g.gain.linearRampToValueAtTime(0.03, t + d + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.09);
+        o.connect(g); g.connect(this.sfx);
+        o.start(t + d); o.stop(t + d + 0.1);
+      }
+    } else if (kind === 'insect') {
+      // 虫：高い 音を、細かく ふるわせる
+      const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 4400;
+      lfo.frequency.value = 28;
+      depth.gain.value = 0.012;
+      lfo.connect(depth); depth.connect(g.gain);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.012, t + 0.2);
+      g.gain.setValueAtTime(0.012, t + 1.6);
+      g.gain.linearRampToValueAtTime(0, t + 2);
+      o.connect(g); g.connect(this.sfx);
+      o.start(t); lfo.start(t); o.stop(t + 2.1); lfo.stop(t + 2.1);
+    }
   }
 
   // カップを ソーサーに 置く 音

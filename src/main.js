@@ -4,6 +4,8 @@
 import { Shop, SPOTS, DRINKS, SWEETS, VISIT, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
 import { drawReceipt, saveReceipt } from './receipt.js';
 import { CounterView, COUNTER_SPOTS } from './counter.js';
+import { mapPlace, bookOpening, clockWords, cupWords, sugarWords, boardWords, catWords, windowSound } from './touch.js';
+import { PLACES } from './scene.js';
 import { drawFacade, DOOR } from './facade.js';
 import { Jukebox } from './music.js';
 import { nextHitorigoto } from './hitorigoto.js';
@@ -60,18 +62,33 @@ function go(phase) {
 // ---- ふきだし ----
 
 let bubbleTimer = 0;
+// ふきだしを 出す。画面の 端に 近い ときは、はみ出さないように ずらす。aside は 地の 文（かっこ書き）
+function show(text, anchor, aside = false) {
+  const fx = anchor.x / W;
+  const shift = fx < 0.22 ? 12 : fx > 0.78 ? 88 : 50;
+  bubble.textContent = text;
+  bubble.style.left = `${fx * 100}%`;
+  bubble.style.top = `${(anchor.y / H) * 100}%`;
+  bubble.style.transform = `translate(-${shift}%, -100%)`;
+  bubble.style.setProperty('--tail', `${shift}%`);
+  bubble.classList.toggle('aside', aside);
+  bubble.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubble.classList.remove('show'), 3500 + text.length * 120);
+}
+
 function say(text, spot = 'okuno') {
+  if (typeof spot === 'object') {
+    // さわった ものの 上に、地の 文を 出す
+    show(text, { x: spot.x + spot.w / 2, y: Math.max(14, spot.y - 2) }, true);
+    return;
+  }
   const counter = prefs.seat === 'counter' && state.phase !== 'walk';
   const anchor = spot === 'door' ? { x: DOOR.x + DOOR.w / 2, y: DOOR.y - 8 }
     : spot === 'cat' ? (counter ? { x: 216, y: 130 } : { x: 84, y: 142 })
     : counter ? { x: 140, y: 32 }
     : { x: SPOTS.okuno.x + 6, y: SPOTS.okuno.y - 3 };
-  bubble.textContent = text;
-  bubble.style.left = `${(anchor.x / W) * 100}%`;
-  bubble.style.top = `${(anchor.y / H) * 100}%`;
-  bubble.classList.add('show');
-  clearTimeout(bubbleTimer);
-  bubbleTimer = setTimeout(() => bubble.classList.remove('show'), 3500 + text.length * 120);
+  show(text, anchor, spot === 'cat');
 }
 
 // ---- 音楽 ----
@@ -420,10 +437,51 @@ function target(p) {
   if (inside(spots.okuno, p)) return 'okuno';
   if (inside(spots.notebook, p, 1)) return 'notebook';
   if (spots.jukebox && inside(spots.jukebox, p, 0)) return 'jukebox';
+  const place = yukashiPlace(new Date(), weather);
+  const catNow = counter ? (place !== 'mado' && COUNTER_SPOTS.yukashi) : (place === 'mado' ? SPOTS.yukashi : { ...PLACES[place], w: 14, h: 8 });
+  if (catNow && inside(catNow, p, 1)) return 'sleepingCat';
+  if (inside(counter ? COUNTER_SPOTS.cup : SPOTS.cup, p, 1) && state.served) return 'cup';
+  if (inside(counter ? COUNTER_SPOTS.clock : SPOTS.clock, p, 1)) return 'clock';
+  if (counter) {
+    if (inside(COUNTER_SPOTS.board, p, 0)) return 'board';
+    if (inside(COUNTER_SPOTS.sugar, p, 0)) return 'sugar';
+  } else {
+    if (inside(SPOTS.map, p, 0)) return 'map';
+    if (inside(SPOTS.shelf, p, 0)) return 'shelf';
+    if (inside(SPOTS.window, p, 0)) return 'window';
+  }
   return null;
 }
 
-view.addEventListener('mousemove', ev => { view.style.cursor = target(scenePoint(ev)) ? 'pointer' : 'default'; });
+// 触ると 何かが 起きる もの（地の 文で 返す）
+async function touch(t, p) {
+  const counter = prefs.seat === 'counter';
+  const date = new Date();
+  const spot = { x: p.x - 1, y: p.y - 4, w: 2, h: 2 };
+  let text = null;
+  if (t === 'map') text = await mapPlace();
+  else if (t === 'shelf') text = await bookOpening();
+  else if (t === 'clock') text = clockWords(date);
+  else if (t === 'cup') text = cupWords(state.served, coffee().warmth);
+  else if (t === 'sugar') text = sugarWords();
+  else if (t === 'board') text = boardWords();
+  else if (t === 'sleepingCat') text = catWords(yukashiPlace(date, weather));
+  else if (t === 'window') {
+    const [words, sound] = windowSound(date, timeKeyOf(date), weather);
+    text = words;
+    if (sound) { jukebox ??= new Jukebox(); jukebox.outside(sound); }
+  }
+  if (!text) return;
+  const r = counter ? { board: COUNTER_SPOTS.board, sugar: COUNTER_SPOTS.sugar, clock: COUNTER_SPOTS.clock, cup: COUNTER_SPOTS.cup }[t] : { map: SPOTS.map, clock: SPOTS.clock, cup: SPOTS.cup, window: SPOTS.window }[t];
+  say(text, r ?? spot);
+}
+
+// かくれた ものの 上では、カーソルを 変えない（さわって みるまで 分からない ように）
+const HIDDEN = new Set(['map', 'shelf', 'window', 'clock', 'cup', 'sugar', 'board', 'sleepingCat']);
+view.addEventListener('mousemove', ev => {
+  const t = target(scenePoint(ev));
+  view.style.cursor = t && !HIDDEN.has(t) ? 'pointer' : 'default';
+});
 view.addEventListener('click', async ev => {
   const t = target(scenePoint(ev));
   if (t === 'door') openDoor();
@@ -435,6 +493,7 @@ view.addEventListener('click', async ev => {
   else if (t === 'cat') say(PURR, 'cat');
   else if (t === 'notebook') window.open('./sketchbook.html', '_blank', 'noopener');
   else if (t === 'jukebox') panel.toggle();
+  else await touch(t, scenePoint(ev));
 });
 view.addEventListener('keydown', ev => {
   if ((ev.key === 'Enter' || ev.key === ' ') && state.phase === 'door') { ev.preventDefault(); openDoor(); }
