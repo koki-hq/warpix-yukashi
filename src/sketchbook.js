@@ -3,6 +3,7 @@ import { drawSprite } from './pixel.js';
 import { cup, okuno, okunoLook, okunoDown, yukashi, clock, monsteraLeaf } from './sprites.js';
 import { Shop, TIMES, timeKeyOf, okunoActivity, ACTIVITIES, SCENE_W, SCENE_H, SPOTS } from './scene.js';
 import { nextHitorigoto } from './hitorigoto.js';
+import { Jukebox } from './music.js';
 import { VERSION } from './version.js';
 
 const params = new URLSearchParams(location.search);
@@ -45,10 +46,28 @@ const buttons = ['now', ...Object.keys(TIMES)].map(key => {
   return [key, b];
 });
 
+// ---- ジュークボックス ----
+// 音は クリックした あとに だけ 鳴らせる（ブラウザの 決まり）。曲は 時間帯で 変わる
+let jukebox = null;
+const musicButton = document.getElementById('music');
+const songLabel = document.getElementById('song');
+async function toggleMusic() {
+  jukebox ??= new Jukebox();
+  if (jukebox.playing) jukebox.stop();
+  else await jukebox.start(currentKey());
+  musicButton.setAttribute('aria-pressed', String(jukebox.playing));
+}
+musicButton.addEventListener('click', toggleMusic);
+
+const currentKey = () => (chosen === 'now' ? timeKeyOf(now()) : chosen);
+
 function draw() {
   const d = now();
-  const key = chosen === 'now' ? timeKeyOf(d) : chosen;
-  shop.render(d, key);
+  const key = currentKey();
+  const music = !!jukebox?.playing;
+  if (music) jukebox.setSong(key);
+  songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
+  shop.render(d, key, { music });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
   status.textContent = `${hh}:${mm}　おくのさん：${ACTIVITIES[okunoActivity(d)]}`;
@@ -62,6 +81,7 @@ sceneEl.addEventListener('click', async e => {
   const y = ((e.clientY - r.top) / r.height) * SCENE_H;
   if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto();
   else if (inside(SPOTS.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
+  else if (inside(SPOTS.jukebox, x, y, 0)) await toggleMusic();
 });
 
 // ---- 時間帯の 光 ----

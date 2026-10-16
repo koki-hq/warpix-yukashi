@@ -20,6 +20,7 @@
   .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
   .tabs button { font: inherit; color: var(--ink); background: var(--paper); border: 2px solid var(--line); padding: 2px 14px; cursor: pointer; }
   .tabs button[aria-pressed="true"] { border-color: #f6cf72; color: #f6cf72; }
+  .tabs .note { margin: 0; align-self: center; }
   .bubble { min-height: 3.4em; background: #faf4e4; color: #2b1d1c; padding: 10px 14px; border: 3px solid #1a1214; box-shadow: 4px 4px 0 #57392c; margin-top: 16px; }
   .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .thumbs figure, .cast figure { margin: 0; background: var(--paper); padding: 8px; }
@@ -43,6 +44,7 @@
   <h2>角の席から</h2>
   <p class="note">お客さんの席から見た店。時計は本当の時刻。おくのさんをクリックすると、ひとりごと。本棚のどこかに、気になる帳面が一冊。</p>
   <div class="tabs" id="tabs"></div>
+  <div class="tabs"><button id="music" aria-pressed="false">♪ ジュークボックス</button><span class="note" id="song"></span></div>
   <p class="note" id="status"></p>
   <canvas id="scene"></canvas>
   <div class="bubble" id="bubble">……</div>

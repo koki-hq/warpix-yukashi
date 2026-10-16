@@ -30,6 +30,7 @@ export const SPOTS = {
   yukashi: { x: 62, y: WIN.y + WIN.h + 3 - 11, w: yukashi.w, h: yukashi.h },
   cup: { x: 168, y: 150, w: cup.w, h: cup.h },
   clock: { x: 120, y: 26, w: 16, h: 16 },
+  jukebox: { x: 252, y: 74, w: 18, h: 48 },
   // 本棚に まぎれた、リボンの はみ出た 帳面。開くと スケッチ帳
   notebook: { x: SHELF.x + 26, y: SHELF.y + 2 + 17 * 2 - 13, w: 5, h: 17 },
 };
@@ -634,14 +635,25 @@ function drawYukashi(ctx, s) {
 }
 
 // 灯り そのもの（光の 計算の あとに 描く）
-function drawGlows(ctx, t, s) {
-  if (!t.lit) return;
-  for (const p of PENDANTS) px(ctx, 'k', p.x - 2, 14 + p.len + 4, 5, 1);
-  px(ctx, 'k', TABLE_LAMP.x - 3, 145, 7, 1);
+function drawGlows(ctx, t, s, music) {
+  if (t.lit) {
+    for (const p of PENDANTS) px(ctx, 'k', p.x - 2, 14 + p.len + 4, 5, 1);
+    px(ctx, 'k', TABLE_LAMP.x - 3, 145, 7, 1);
+  }
+  // ジュークボックスは 鳴っている あいだ 灯る
+  if (!music) return;
   const { x, y, w } = JUKEBOX;
   const beat = Math.floor(s) % 4;
   for (let i = 0; i < 4; i++) px(ctx, i === beat ? 'j' : 'k', x + 4 + i * 3, y + 10, 2, 6);
   px(ctx, 'j', x + 2, y + 20, w - 4, 1);
+  // ときどき 音符が ふわりと 浮かぶ
+  const p = happening(s, 6, 3, 0.6, 11);
+  if (p !== false && p < 0.85) {
+    const nx = x + 12 + Math.round(Math.sin(p * 6) * 2), ny = y - 2 - Math.floor(p * 14);
+    ctx.globalAlpha = p < 0.6 ? 0.9 : 0.4;
+    px(ctx, 'k', nx, ny, 1, 4); px(ctx, 'k', nx - 2, ny + 3, 2, 2); px(ctx, 'k', nx + 1, ny, 1, 1);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // 湯気：3すじ、ゆらゆら 上って 薄れていく。
@@ -669,7 +681,7 @@ export class Shop {
     this.lightMaps = {};
   }
 
-  render(date, timeKey = timeKeyOf(date)) {
+  render(date, timeKey = timeKeyOf(date), { music = false } = {}) {
     const ctx = this.ctx, t = TIMES[timeKey];
     const s = date.getTime() / 1000;
     if (!this.room) {
@@ -700,7 +712,7 @@ export class Shop {
     }
     applyLightMap(ctx, SCENE_W, SCENE_H, this.lightMaps[timeKey], skip);
 
-    drawGlows(ctx, t, s);
+    drawGlows(ctx, t, s, music);
     drawSteam(ctx, SPOTS.cup.x + 4, SPOTS.cup.y + 1, Math.floor(s * 8) / 8);
   }
 }
