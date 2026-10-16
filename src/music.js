@@ -108,6 +108,7 @@ export class Jukebox {
 
     this.songKey = null;
     this.playing = false;
+    this.seedBase = 0;
     this.volume = 0.5;
   }
 
@@ -151,7 +152,8 @@ export class Jukebox {
     const beat = 60 / song.bpm;
     const eighth = i => t0 + Math.floor(i / 2) * beat + (i % 2 ? beat * 2 * song.swing - beat : 0);
     // A A' B A：2つ目は リズムだけ 同じ、3つ目は 新しく、4つ目は 1つ目と 同じ
-    const round = Math.floor(index / 4), part = index % 4;
+    // seedBase は 鳴らしはじめる たびに 変わるので、毎回 ちがう 出だしに なる
+    const round = this.seedBase + Math.floor(index / 4), part = index % 4;
     if (part === 0 || !this.phraseA || this.phraseRound !== round) {
       this.phraseA = makePhrase(song, seeded(round * 7 + 1));
       this.phraseRound = round;
@@ -159,7 +161,7 @@ export class Jukebox {
     const phrase = part === 0 || part === 3 ? this.phraseA
       : part === 1 ? makePhrase(song, seeded(round * 7 + 2), this.phraseA.rhythms)
       : makePhrase(song, seeded(round * 7 + 3));
-    const rnd = seeded(index * 3 + 5);
+    const rnd = seeded((this.seedBase * 4 + index) * 3 + 5);
 
     song.chords.forEach((chord, b) => {
       const bar = b * 8;
@@ -212,6 +214,7 @@ export class Jukebox {
     if (key) this.songKey = key;
     this.playing = true;
     this.phraseIndex = 0;
+    this.seedBase = Math.floor(Math.random() * 100000);
     this.nextTime = this.ctx.currentTime + 0.1;
     this.master.gain.setTargetAtTime(MASTER * this.volume, this.ctx.currentTime, 0.4);
     this.tick();

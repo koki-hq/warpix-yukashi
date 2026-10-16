@@ -6,7 +6,8 @@
 - 番号は git のタグ（`v0.2.0` など）と、GitHub のリリースに残す
 - 設定資料（`docs/`）もソースと同じリポジトリにあるので、タグ一つで「そのときの店」と「そのときの設定」がそろって残る
 - 何が変わったかは [CHANGELOG.md](../CHANGELOG.md) に書く
-- 番号は `package.json`、`src/version.js`、CHANGELOG の三か所をそろえる（スケッチ帳の下に版が出る）
+- 番号は `package.json`、`src/version.js`、CHANGELOG、README（説明書）のいちばん上の四か所をそろえる（スケッチ帳の下に版が出る）
+- README は、いま公開している版の説明書。仕様が変わったら、同じ版の中で README も書き直す
 - 開店前は `0.x`。開店したら `1.0.0`
 
 番号の上げ方：
