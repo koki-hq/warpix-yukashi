@@ -18,8 +18,14 @@
 | `src/sprites.js` | ドット絵。1文字＝1ドットの文字列で描く |
 | `src/pixel.js` | ドット絵を canvas に描く道具と、光の計算 |
 | `src/scene.js` | 店の景色と、時間帯ごとの光 |
-| `data/hitorigoto.txt` | おくのさんのひとりごと。1行ずつ書き足せる |
-| `notes/setting.md` | 店の設定ノート |
+| `src/version.js` | 店の版 |
+| `data/hitorigoto.txt` | おくのさんのひとりごと |
+| `docs/` | 設定資料。世界観、住人、店の中、店づくりの決まり、バージョンの決まり |
+| `CHANGELOG.md` | 店の歩み |
+
+## バージョン
+
+区切りごとに番号をつけて、git のタグと GitHub のリリースに残しています。設定資料もソースと同じ場所にあるので、どの版でも「そのときの店」と「そのときの設定」がそろって見られます。戻り方は [docs/versions.md](docs/versions.md)。
 
 ## 手元で見る
 

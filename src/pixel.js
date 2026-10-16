@@ -18,15 +18,36 @@ export function sprite(name, rows) {
   return { name, w, h: rows.length, rows };
 }
 
-export function drawSprite(ctx, sp, x, y) {
+// flip で 左右反転、swap で 色の 入れかえ（{ f: 'e' } なら f を e で 塗る）。
+export function drawSprite(ctx, sp, x, y, { flip = false, swap } = {}) {
   for (let j = 0; j < sp.h; j++) {
     for (let i = 0; i < sp.w; i++) {
-      const ch = sp.rows[j][i];
+      let ch = sp.rows[j][flip ? sp.w - 1 - i : i];
       if (ch === '.') continue;
+      if (swap && swap[ch]) ch = swap[ch];
       ctx.fillStyle = COLOR[ch];
       ctx.fillRect(x + i, y + j, 1, 1);
     }
   }
+}
+
+// 決まった 種から 毎回 同じ 並びの 乱数を 出す（本の 並びが 開くたびに 変わらないように）。
+export function seeded(seed) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function inPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 export function px(ctx, key, x, y, w = 1, h = 1) {
@@ -51,9 +72,9 @@ export function line(ctx, key, x0, y0, x1, y1) {
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
 
-// 光を あてる。ambient は 部屋全体の 色、lamps は 点の 光。
+// 光を あてる。ambient は 部屋全体の 色、lamps は 点の 光、beams は 窓から 差しこむ 光（多角形）。
 // 明るさは 段階に 丸めて、境目は 網点（ディザ）で ぼかす。なめらかな グラデーションに しないのが ドット絵らしさ。
-export function light(ctx, w, h, { ambient, lamps = [], steps = 6, skip }) {
+export function light(ctx, w, h, { ambient, lamps = [], beams = [], steps = 6, skip }) {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   for (let y = 0; y < h; y++) {
@@ -61,6 +82,7 @@ export function light(ctx, w, h, { ambient, lamps = [], steps = 6, skip }) {
       if (skip && skip(x, y)) continue;
       const o = (y * w + x) * 4;
       const t = BAYER[(y & 3) * 4 + (x & 3)];
+      const inBeams = beams.filter(b => inPolygon(x, y, b.poly));
       for (let c = 0; c < 3; c++) {
         let f = ambient[c];
         for (const L of lamps) {
@@ -68,6 +90,7 @@ export function light(ctx, w, h, { ambient, lamps = [], steps = 6, skip }) {
           const k = Math.max(0, 1 - dist / L.r);
           f += L.color[c] * k * k;
         }
+        for (const b of inBeams) f += b.color[c];
         const q = Math.floor(f * steps + t) / steps;
         d[o + c] = Math.min(255, d[o + c] * q);
       }
