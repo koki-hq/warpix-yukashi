@@ -496,8 +496,14 @@ function drawMyTable(ctx) {
   px(ctx, '0', bx - 1, by - 1, 38, 13);
   px(ctx, '9', bx, by, 17, 11); px(ctx, '8', bx + 19, by, 17, 11); px(ctx, '7', bx + 17, by, 2, 11);
   for (let l = 0; l < 4; l++) { px(ctx, 'b', bx + 2, by + 2 + l * 2, 13 - (l === 3 ? 6 : 0), 1); px(ctx, 'b', bx + 21, by + 2 + l * 2, 13, 1); }
-  drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y);
 }
+
+// 飲みもの。カップの 中の 色で 見分ける
+export const DRINKS = {
+  yukashi: { name: 'ゆかしブレンド' },
+  tsukimi: { name: '月見ブレンド', swap: { 1: '2', 2: '3', 3: '4' } },
+  milk: { name: '霧の朝のミルクコーヒー', swap: { 1: '5', 2: '6', 3: '7' } },
+};
 
 
 // 自分の テーブルの 小さな ランプ。夕方から 灯る。
@@ -586,8 +592,9 @@ export function okunoActivity(date) {
   return 'chizu';
 }
 
-function drawOkuno(ctx, date, s) {
+function drawOkuno(ctx, date, s, bow) {
   const { x, y } = SPOTS.okuno;
+  if (bow) { drawSprite(ctx, okunoDown, x, y + 1); return; } // 会釈
   const act = okunoActivity(date);
   if (act === 'migaku') {
     drawSprite(ctx, okuno, x, y);
@@ -707,9 +714,9 @@ function drawGlows(ctx, t, s, music) {
   }
 }
 
-// 湯気：3すじ、ゆらゆら 上って 薄れていく。
-function drawSteam(ctx, x, y, t) {
-  for (let k = 0; k < 3; k++) {
+// 湯気：ゆらゆら 上って 薄れていく。warmth は すじの 数（冷めると 減って、やがて 消える）
+function drawSteam(ctx, x, y, t, warmth = 3) {
+  for (let k = 0; k < warmth; k++) {
     for (let y0 = 0; y0 < 14; y0 += 3) {
       const life = ((y0 + t * 4 + k * 5) % 14) / 14;
       if (life < 0.15) continue;
@@ -732,8 +739,9 @@ export class Shop {
     this.lightMaps = {};
   }
 
-  // stay：お客さんが 店に いる 秒数
-  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0 } = {}) {
+  // stay：お客さんが 店に いる 秒数、drink：テーブルの 飲みもの（null なら まだ 来ていない）、
+  // warmth：湯気の すじの 数、bow：おくのさんが 会釈している
+  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0, drink = 'yukashi', warmth = 3, bow = false } = {}) {
     const ctx = this.ctx, t = TIMES[timeKey];
     const s = date.getTime() / 1000;
     if (!this.room) {
@@ -748,8 +756,9 @@ export class Shop {
     const outside = ctx.getImageData(WIN.x, WIN.y, WIN.w, WIN.h).data;
     ctx.drawImage(this.room, 0, 0);
     drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
-    drawOkuno(ctx, date, s);
+    drawOkuno(ctx, date, s, bow);
     drawYukashi(ctx, s, date, stay);
+    if (drink) drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y, { swap: DRINKS[drink].swap });
 
     // 窓の 外が そのまま 見えている ところには 光を あてない
     const skip = new Uint8Array(SCENE_W * SCENE_H);
@@ -765,6 +774,6 @@ export class Shop {
     applyLightMap(ctx, SCENE_W, SCENE_H, this.lightMaps[timeKey], skip);
 
     drawGlows(ctx, t, s, music);
-    drawSteam(ctx, SPOTS.cup.x + 4, SPOTS.cup.y + 1, Math.floor(s * 8) / 8);
+    if (drink) drawSteam(ctx, SPOTS.cup.x + 4, SPOTS.cup.y + 1, Math.floor(s * 8) / 8, warmth);
   }
 }

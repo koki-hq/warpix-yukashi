@@ -225,4 +225,40 @@ export class Jukebox {
   }
 
   get title() { return SONGS[this.pendingKey ?? this.songKey]?.title ?? ''; }
+
+  // ---- 効果音（音楽を 止めていても 鳴る） ----
+
+  chime(midi, t, dur, vol) {
+    const ctx = this.ctx;
+    this.sfx ??= (() => { const g = ctx.createGain(); g.gain.value = 0.5; g.connect(ctx.destination); return g; })();
+    // 鈴らしさは、高い 倍音を 少し 混ぜて 出す
+    for (const [ratio, v] of [[1, 1], [2.76, 0.35], [5.4, 0.12]]) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = midiHz(midi) * ratio;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol * v, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur / ratio);
+      o.connect(g);
+      g.connect(this.sfx);
+      o.start(t);
+      o.stop(t + dur);
+    }
+  }
+
+  // ドアの 鈴：ちりん、ちりん
+  async bell() {
+    await this.ctx.resume();
+    const t = this.ctx.currentTime + 0.02;
+    for (const [d, m, v] of [[0, 93, 0.14], [0.11, 98, 0.1], [0.3, 93, 0.08], [0.42, 98, 0.05]]) this.chime(m, t + d, 1.6, v);
+  }
+
+  // カップを ソーサーに 置く 音
+  async clink() {
+    await this.ctx.resume();
+    const t = this.ctx.currentTime + 0.02;
+    this.chime(103, t, 0.25, 0.05);
+    this.chime(98, t + 0.06, 0.2, 0.03);
+  }
 }
