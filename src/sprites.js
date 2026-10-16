@@ -102,6 +102,43 @@ export const yukashiFront = sprite('ゆかし（正面）', yukashiFrontRows);
 // 目を 細める（ゆっくりの まばたきは、猫の「好き」の 合図）
 export const yukashiFrontBlink = sprite('ゆかし（まばたき）', yukashiFrontRows.map((r, y) => (y === 4 ? '.01100999900ii0.....' : r)));
 
+// 甘いものの 小皿と、のせる もの。カップと 同じ 手前の 大きさ。
+export const plate = sprite('小皿', [
+  '...000000000000...',
+  '.00cccccccccccc00.',
+  '0bccccccccccccccb0',
+  '.00bbbbbbbbbbbb00.',
+  '...000000000000...',
+]);
+// 固めの プリン：苦い カラメル
+export const pudding = sprite('固めのプリン', mirrorX([
+  '...00',
+  '..0hh',
+  '.0hgg',
+  '.0kkk',
+  '0k7kk',
+  '0k7kk',
+  '0kkk7',
+]));
+// シナモントースト
+export const toast = sprite('シナモントースト', [
+  '..44444444..',
+  '.4677777764.',
+  '467k3737764.',
+  '46737k73764.',
+  '46773737764.',
+  '.444444444..',
+]);
+// レモンケーキ：夏の 味が する 冬の お菓子
+export const lemonCake = sprite('レモンケーキ', [
+  '.99999999.',
+  '09j99j99j0',
+  '0kkkkkkkk0',
+  '0kk7kkk7k0',
+  '0kkkkkkkk0',
+  '.00000000.',
+]);
+
 // 壁の 時計（針は 時刻に あわせて コードで 描く）。
 export const clock = sprite('壁の時計', mirrorY(mirrorX([
   '.....000',

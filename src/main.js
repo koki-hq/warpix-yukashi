@@ -1,14 +1,14 @@
 // 喫茶ゆかし。ドアを 開けて、席に 着いて、あとは のんびり。
 //
 // 流れ：door（店の 表）→ opening（ドアが 開く）→ walk（席まで 歩く）→ sit（座る）→ stay（過ごす）
-import { Shop, SPOTS, DRINKS, VISIT, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
+import { Shop, SPOTS, DRINKS, SWEETS, VISIT, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
 import { drawReceipt, saveReceipt } from './receipt.js';
 import { drawFacade, DOOR } from './facade.js';
 import { Jukebox } from './music.js';
 import { nextHitorigoto } from './hitorigoto.js';
 import { checkIn, recordStay, loadPrefs, savePrefs } from './guest.js';
 import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
-import { greeting, chooseDrink, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
+import { greeting, chooseDrink, chooseSweet, SWEET_LINES, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
 import { drawFavicon } from './favicon.js';
 import { weatherOf } from './weather.js';
 
@@ -129,20 +129,29 @@ function sitDown() {
   state.satAt = Date.now();
   const now = performance.now();
   state.drink = chooseDrink(new Date(), weather);
+  state.sweet = chooseSweet(new Date());
   state.script = [
     [now + 1500, () => say(orderLine(state.guest, state.drink, weather))],
     [now + 7000, serve],
   ];
+  if (state.sweet) state.script.push([now + 13000, () => say(SERVED)]);
 }
 
 function serve() {
   state.servedAt = Date.now();
+  state.sweetAt = Date.now();
   state.served = true;
   state.cups = 1;
   jukebox?.clink();
-  say(SERVED);
+  say(state.sweet ? SWEET_LINES[state.sweet] : SERVED);
   updateCoffee();
   checkoutButton.hidden = false;
+}
+
+// 甘いものは 8分で 半分、18分で 食べおわる
+function sweetLeft() {
+  const min = (Date.now() - state.sweetAt) / MIN;
+  return min < 8 ? 1 : min < 18 ? 0.5 : 0;
 }
 
 // ---- お会計 ----
@@ -163,7 +172,7 @@ async function checkout() {
   await drawReceipt(receiptCanvas, {
     date: receiptDate,
     visit: state.guest.visits,
-    items: [[DRINKS[state.drink].name, state.cups]],
+    items: [[DRINKS[state.drink].name, state.cups], ...(state.sweet ? [[SWEETS[state.sweet].name, 1]] : [])],
     stay: stayed(),
     catVisits: catVisits(stayed()),
     hitorigotoCount: state.hitorigotoCount,
@@ -184,7 +193,7 @@ function leave() {
 
 // 店を 出たら、また はじめから
 function resetVisit() {
-  Object.assign(state, { drink: null, served: false, servedAt: 0, satAt: 0, script: [], cups: 0, hitorigotoCount: 0, lastWords: null });
+  Object.assign(state, { drink: null, sweet: null, served: false, servedAt: 0, satAt: 0, script: [], cups: 0, hitorigotoCount: 0, lastWords: null });
   hint.classList.remove('gone');
   drawFavicon(1, 'yukashi');
   go('door');
@@ -306,6 +315,8 @@ function draw(now) {
     warmth,
     bow: now < state.bowUntil,
     weather,
+    sweet: state.served ? state.sweet : null,
+    sweetLeft: state.served ? sweetLeft() : 1,
   });
 
   if (state.phase === 'walk') {

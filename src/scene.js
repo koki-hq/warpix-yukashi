@@ -12,6 +12,7 @@ import { COLOR } from './palette.js';
 import {
   cup, clock, okuno, okunoLook, okunoDown, monsteraLeaf,
   yukashi, yukashiEar, yukashiLoaf, yukashiFront, yukashiFrontBlink,
+  plate, pudding, toast, lemonCake,
 } from './sprites.js';
 
 export const SCENE_W = 320;
@@ -570,6 +571,35 @@ function drawMyTable(ctx) {
   for (let l = 0; l < 4; l++) { px(ctx, 'b', bx + 2, by + 2 + l * 2, 13 - (l === 3 ? 6 : 0), 1); px(ctx, 'b', bx + 21, by + 2 + l * 2, 13, 1); }
 }
 
+// 甘いもの。left は 残りの 割合（1 → 0.5 → 0）
+export const SWEETS = {
+  toast: { name: 'シナモントースト', sprite: toast },
+  pudding: { name: '固めのプリン', sprite: pudding },
+  lemon: { name: 'レモンケーキ', sprite: lemonCake },
+};
+const PLATE = { x: 194, y: 158 };
+
+function drawSweet(ctx, kind, left) {
+  drawSprite(ctx, plate, PLATE.x, PLATE.y);
+  px(ctx, 'b', PLATE.x + 15, PLATE.y + 1, 5, 1); // フォーク
+  px(ctx, 'a', PLATE.x + 19, PLATE.y + 1, 1, 1);
+  const sp = SWEETS[kind].sprite;
+  const x = PLATE.x + 9 - Math.floor(sp.w / 2), y = PLATE.y + 2 - sp.h;
+  if (left >= 1) { drawSprite(ctx, sp, x, y); return; }
+  if (left > 0) {
+    // 半分 食べた ところ：右半分だけ 残っている
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + Math.floor(sp.w / 2), y, sp.w, sp.h);
+    ctx.clip();
+    drawSprite(ctx, sp, x, y);
+    ctx.restore();
+    return;
+  }
+  // 食べおわり：くずが 少し
+  for (const [dx, dy] of [[5, 1], [8, 2], [11, 1]]) px(ctx, sp.rows[3][2], PLATE.x + dx, PLATE.y + dy);
+}
+
 // 飲みもの。カップの 中の 色で 見分ける
 export const DRINKS = {
   yukashi: { name: 'ゆかしブレンド' },
@@ -814,7 +844,8 @@ export class Shop {
 
   // stay：お客さんが 店に いる 秒数、drink：テーブルの 飲みもの（null なら まだ 来ていない）、
   // warmth：湯気の すじの 数、bow：おくのさんが 会釈している、weather：天気（hare・kiri・ame）
-  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0, drink = 'yukashi', warmth = 3, bow = false, weather = 'hare' } = {}) {
+  // sweet：甘いもの（null なら なし）、sweetLeft：その 残り
+  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0, drink = 'yukashi', warmth = 3, bow = false, weather = 'hare', sweet = null, sweetLeft = 1 } = {}) {
     const ctx = this.ctx, t = lookOf(timeKey, weather);
     const s = date.getTime() / 1000;
     if (!this.room) {
@@ -832,6 +863,7 @@ export class Shop {
     drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
     drawOkuno(ctx, date, s, bow);
     drawYukashi(ctx, s, date, stay, weather);
+    if (sweet) drawSweet(ctx, sweet, sweetLeft);
     if (drink) drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y, { swap: DRINKS[drink].swap });
 
     // 窓の 外が そのまま 見えている ところには 光を あてない

@@ -87,21 +87,79 @@ function drawWindowFrame(ctx, w) {
   px(ctx, '6', w.x - 3, w.y + w.h + 3, w.w + 6, 1);
 }
 
-// 窓の 中：昼は 空が 映り、夕方からは 店の 灯りが もれる
-function drawWindowGlass(ctx, w, t, lit) {
+// 窓の 中の 色：夕方からは 灯りの 色、昼は 外より 暗い 店の 中
+const INSIDE = {
+  lit: { wall: 'j', glow: 'k', shelf: '5', dark: '4', top: '7', front: '5', floor: '6', bulb: 'k' },
+  day: { wall: '3', glow: '4', shelf: '2', dark: '1', top: '5', front: '2', floor: '4', bulb: 'b' },
+};
+
+function drawPendant(ctx, x, y, c) {
+  px(ctx, c.dark, x, y, 1, 6);
+  px(ctx, 'h', x - 3, y + 6, 7, 2);
+  px(ctx, 'g', x - 4, y + 8, 9, 1);
+  px(ctx, c.bulb, x - 1, y + 9, 3, 1);
+}
+
+// 左の 窓：カウンターと おくのさん
+function drawCounterSide(ctx, w, c) {
+  px(ctx, c.glow, w.x + 20, w.y + 2, w.w - 40, 20);
+  for (const sy of [w.y + 12, w.y + 22]) {
+    for (let i = 0; i < 7; i++) px(ctx, i % 3 ? c.dark : 'c', w.x + 6 + i * 11, sy - 5, 4, 5); // 瓶と カップ
+    px(ctx, c.shelf, w.x, sy, w.w, 2);
+  }
+  drawPendant(ctx, w.x + 24, w.y, c);
+  // おくのさん
+  const ox = w.x + 52, oy = w.y + 24;
+  px(ctx, 'c', ox, oy, 6, 2);
+  px(ctx, 'q', ox + 1, oy + 2, 4, 3);
+  px(ctx, 'c', ox + 1, oy + 4, 4, 1);
+  px(ctx, '9', ox - 1, oy + 5, 8, 2);
+  px(ctx, '3', ox, oy + 6, 6, 6);
+  px(ctx, '9', ox + 2, oy + 6, 2, 3);
+  // カウンター
+  px(ctx, c.top, w.x, w.y + 36, w.w, 2);
+  px(ctx, c.front, w.x, w.y + 38, w.w, w.h - 38);
+  for (let x = w.x + 4; x < w.x + w.w - 10; x += 20) px(ctx, c.dark, x, w.y + 41, 14, 1);
+  px(ctx, 'c', w.x + 16, w.y + 33, 4, 3); // カウンターの カップ
+}
+
+// 右の 窓：テーブル、本棚、鉢
+function drawTableSide(ctx, w, c) {
+  px(ctx, c.glow, w.x + 10, w.y + 4, 40, 24);
+  drawPendant(ctx, w.x + 32, w.y, c);
+  // 本棚
+  const bx = w.x + w.w - 22;
+  px(ctx, c.dark, bx, w.y + 2, 20, w.h - 2);
+  const colors = ['g', 'm', 'e', 'h', '7', 'n', '5'];
+  for (let r = 0; r < 4; r++) {
+    for (let i = 0; i < 6; i++) px(ctx, colors[(r * 3 + i) % colors.length], bx + 2 + i * 3, w.y + 5 + r * 12, 2, 8);
+    px(ctx, c.shelf, bx, w.y + 13 + r * 12, 20, 1);
+  }
+  // 丸テーブルと 椅子
+  px(ctx, c.floor, w.x, w.y + w.h - 8, w.w - 22, 8);
+  px(ctx, c.top, w.x + 22, w.y + 38, 22, 2);
+  px(ctx, c.dark, w.x + 32, w.y + 40, 2, 12);
+  px(ctx, c.dark, w.x + 28, w.y + 51, 10, 1);
+  for (const cx of [w.x + 14, w.x + 48]) {
+    px(ctx, c.dark, cx, w.y + 32, 2, 20);
+    px(ctx, c.dark, cx - 2, w.y + 42, 6, 2);
+  }
+  px(ctx, 'c', w.x + 30, w.y + 35, 4, 3); // テーブルの カップ
+  // 鉢植え
+  px(ctx, 'h', w.x + 3, w.y + w.h - 10, 7, 8);
+  for (const [lx, ly] of [[1, 30], [5, 26], [8, 31], [3, 36], [7, 37]]) { px(ctx, 'e', w.x + lx, w.y + ly, 3, 2); px(ctx, 'f', w.x + lx, w.y + ly, 2, 1); }
+}
+
+// 窓の 中：昼は 空が 映りこみ、夕方からは 店の 灯りが もれる
+function drawWindowGlass(ctx, w, t, lit, index) {
+  const c = lit ? INSIDE.lit : INSIDE.day;
+  px(ctx, c.wall, w.x, w.y, w.w, w.h);
+  if (index === 0) drawCounterSide(ctx, w, c);
+  else drawTableSide(ctx, w, c);
   if (!lit) {
-    px(ctx, '2', w.x, w.y, w.w, w.h);
-    px(ctx, 'n', w.x, w.y, w.w, 20);
-    px(ctx, 'o', w.x, w.y, w.w, 8);
-    for (let k = 0; k < 3; k++) for (let i = 0; i < 12; i++) px(ctx, 'p', w.x + 10 + k * 26 + i, w.y + 4 + i, 2, 1); // 映りこみ
-  } else {
-    px(ctx, 'j', w.x, w.y, w.w, w.h);
-    px(ctx, 'k', w.x + 8, w.y + 4, w.w - 16, 22);
-    // 中の 気配：棚と 鉢と ランプ
-    px(ctx, '5', w.x, w.y + 30, w.w, 2);
-    for (let i = 0; i < 6; i++) px(ctx, '4', w.x + 6 + i * 13, w.y + 24, 4, 6);
-    px(ctx, 'h', w.x + w.w / 2 - 5, w.y, 10, 4);
-    px(ctx, '6', w.x, w.y + w.h - 10, w.w, 10);
+    // ガラスの 映りこみ：上に 空、ななめの 光
+    px(ctx, 'o', w.x, w.y, w.w, 3);
+    for (let k = 0; k < 3; k++) for (let i = 0; i < 12; i++) px(ctx, 'p', w.x + 10 + k * 26 + i, w.y + 4 + i, 2, 1);
   }
   // 格子
   px(ctx, '1', w.x + w.w / 2 - 1, w.y, 2, w.h);
@@ -180,7 +238,7 @@ export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0, weather
   const lit = t.lit === true;
   drawSkyAndGround(ctx, t);
   drawBuilding(ctx);
-  for (const w of WINDOWS) { drawWindowFrame(ctx, w); drawWindowGlass(ctx, w, t, lit); }
+  WINDOWS.forEach((w, i) => { drawWindowFrame(ctx, w); drawWindowGlass(ctx, w, t, lit, i); });
   // 窓辺に ゆかし（中から 外を 見ている）
   if (cat) drawSprite(ctx, yukashiFront, WINDOWS[1].x + 50, WINDOWS[1].y + WINDOWS[1].h - 18);
   drawDoor(ctx, open, lit);

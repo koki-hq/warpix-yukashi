@@ -10,6 +10,7 @@ import { nextHitorigoto } from './hitorigoto.js';
 import { Jukebox, SONGS, SONG_ORDER, GENRES } from './music.js';
 import { VERSION } from './version.js';
 import { weatherOf, WEATHERS } from './weather.js';
+import { chooseSweet } from './lines.js';
 import { drawFacade, FACADE_W, FACADE_H } from './facade.js';
 
 const params = new URLSearchParams(location.search);
@@ -160,7 +161,7 @@ function draw() {
   if (music) jukebox.follow(mode, key, weather);
   jukebox?.setRain(music && weather === 'ame');
   songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
-  shop.render(d, key, { music, stay: stay(), weather });
+  shop.render(d, key, { music, stay: stay(), weather, sweet: chooseSweet(d), sweetLeft: params.get('left') ? Number(params.get('left')) : 1 });
   drawFacade(facadeCtx, key, { cat: yukashiPlace(d, weather) === 'mado', s: d.getTime() / 1000, weather });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');

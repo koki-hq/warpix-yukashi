@@ -29,6 +29,21 @@ export function orderLine(guest, drink, weather = 'hare') {
   return '今日も、ゆかしブレンドにしましょう。';
 }
 
+// 甘いもの：朝は シナモントースト、昼すぎは プリン、夕方は レモンケーキ。夜と 深夜は なし
+export function chooseSweet(date) {
+  const h = date.getHours();
+  if (h >= 5 && h < 10) return 'toast';
+  if (h >= 13 && h < 16) return 'pudding';
+  if (h >= 16 && h < 19) return 'lemon';
+  return null;
+}
+
+export const SWEET_LINES = {
+  toast: 'それと、トーストを。シナモンは、おまけです。',
+  pudding: 'プリンがちょうど固まったので、よかったら。',
+  lemon: 'レモンケーキもどうぞ。夏の味がする、冬のお菓子です。',
+};
+
 export const SERVED = 'どうぞ、ごゆっくり。';
 export const CHECKOUT = 'ありがとうございました。';
 export const STAY_MORE = 'ええ、どうぞ。いくらでも。';
