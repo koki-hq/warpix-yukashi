@@ -1,7 +1,11 @@
 import { PALETTE } from './palette.js';
 import { drawSprite } from './pixel.js';
-import { cup, okuno, okunoLook, okunoDown, yukashi, clock, monsteraLeaf } from './sprites.js';
-import { Shop, TIMES, timeKeyOf, okunoActivity, ACTIVITIES, SCENE_W, SCENE_H, SPOTS } from './scene.js';
+import {
+  cup, okuno, okunoLook, okunoDown, yukashi, yukashiLoaf, yukashiFront, yukashiFrontBlink, clock, monsteraLeaf,
+} from './sprites.js';
+import {
+  Shop, TIMES, timeKeyOf, okunoActivity, ACTIVITIES, yukashiPlace, yukashiVisit, PLACES, SCENE_W, SCENE_H, SPOTS,
+} from './scene.js';
 import { nextHitorigoto } from './hitorigoto.js';
 import { Jukebox } from './music.js';
 import { VERSION } from './version.js';
@@ -20,6 +24,8 @@ const startShop = (() => {
 })();
 const speed = Number(params.get('speed')) || 1;
 const now = () => new Date(startShop + (Date.now() - startReal) * speed);
+// ?stay=900 で「もう 15分 いる」ことに できる
+const stay = () => ((Date.now() - startReal) / 1000) * speed + (Number(params.get('stay')) || 0);
 
 function makeCanvas(w, h, el = document.createElement('canvas')) {
   el.width = w; el.height = h;
@@ -67,10 +73,11 @@ function draw() {
   const music = !!jukebox?.playing;
   if (music) jukebox.setSong(key);
   songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
-  shop.render(d, key, { music });
+  shop.render(d, key, { music, stay: stay() });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
-  status.textContent = `${hh}:${mm}　おくのさん：${ACTIVITIES[okunoActivity(d)]}`;
+  const cat = yukashiVisit(stay()) !== false ? 'あなたのテーブルに来ている' : PLACES[yukashiPlace(d)].label;
+  status.textContent = `${hh}:${mm}　おくのさん：${ACTIVITIES[okunoActivity(d)]}　ゆかし：${cat}　滞在 ${Math.floor(stay() / 60)}分`;
 }
 
 const inside = (spot, x, y, pad = 2) => x >= spot.x - pad && x < spot.x + spot.w + pad && y >= spot.y - pad && y < spot.y + spot.h + pad;
@@ -99,7 +106,8 @@ const drawThumbs = () => thumbs.forEach(th => th.shop.render(now(), th.key));
 // ---- 小物 ----
 const castItems = [
   ['おくのさん', okuno, 8], ['窓を見る', okunoLook, 8], ['うつむく', okunoDown, 8],
-  ['ゆかし', yukashi, 8], ['いつもの一杯', cup, 6], ['壁の時計', clock, 6], ['モンステラの葉', monsteraLeaf, 6],
+  ['ゆかし', yukashi, 8], ['丸くなる', yukashiLoaf, 8], ['テーブルに来た', yukashiFront, 6], ['まばたき', yukashiFrontBlink, 6],
+  ['いつもの一杯', cup, 6], ['壁の時計', clock, 6], ['モンステラの葉', monsteraLeaf, 6],
 ];
 for (const [label, sp, scale] of castItems) {
   const fig = document.createElement('figure');

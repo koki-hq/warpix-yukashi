@@ -9,7 +9,10 @@
 //   5. 灯り そのものと 湯気（光の 影響を 受けない）
 import { drawSprite, px, line, seeded, makeLightMap, applyLightMap } from './pixel.js';
 import { COLOR } from './palette.js';
-import { cup, clock, okuno, okunoLook, okunoDown, yukashi, yukashiEar, monsteraLeaf } from './sprites.js';
+import {
+  cup, clock, okuno, okunoLook, okunoDown, monsteraLeaf,
+  yukashi, yukashiEar, yukashiLoaf, yukashiFront, yukashiFrontBlink,
+} from './sprites.js';
 
 export const SCENE_W = 320;
 export const SCENE_H = 180;
@@ -618,7 +621,55 @@ function drawOkuno(ctx, date, s) {
   }
 }
 
-function drawYukashi(ctx, s) {
+// ゆかしの 一日（docs/characters.md）
+export const PLACES = {
+  isu: { label: '窓ぎわの椅子で丸くなる', x: 17, y: 127 },
+  hinata: { label: '床の日だまりで眠る', x: 118, y: 143 },
+  mado: { label: '窓辺で外を見る' },
+  tana: { label: '本棚の三段目で眠る', x: SHELF.x + 15, y: SHELF.y + 2 + 17 * 3 - 8 },
+};
+
+export function yukashiPlace(date) {
+  const h = date.getHours();
+  if (h < 5) return 'tana';
+  if (h < 10) return 'isu';
+  if (h < 16) return 'hinata';
+  if (h < 19) return 'mado';
+  return 'tana';
+}
+
+// しばらく いると、ゆかしが 自分の テーブルに 来る。
+// 15分 いたら はじめて 来て、そのあとは 20分ごとに 1分ずつ。
+export const VISIT = { after: 15 * 60, every: 20 * 60, length: 60 };
+export function yukashiVisit(stay) {
+  if (stay < VISIT.after) return false;
+  const p = ((stay - VISIT.after) % VISIT.every) / VISIT.length;
+  return p < 1 ? p : false;
+}
+
+function drawVisit(ctx, p, s) {
+  const x = 74, y = 146;
+  if (p < 0.08 || p > 0.94) return; // 来る 途中・帰る 途中は 見えない（ふと 見ると いる）
+  if (p > 0.3 && p < 0.36) { drawSprite(ctx, yukashiFrontBlink, x, y); return; } // ゆっくり まばたき
+  if (p > 0.5 && p < 0.78) {
+    // すりすり：目を 細めて、頭を 左右に
+    drawSprite(ctx, yukashiFrontBlink, x + (Math.floor(s * 3) % 2), y);
+    return;
+  }
+  drawSprite(ctx, yukashiFront, x, y);
+}
+
+function drawYukashi(ctx, s, date, stay) {
+  const visit = yukashiVisit(stay);
+  if (visit !== false) { drawVisit(ctx, visit, s); return; }
+  const place = yukashiPlace(date);
+  if (place !== 'mado') {
+    const { x, y } = PLACES[place];
+    drawSprite(ctx, yukashiLoaf, x, y);
+    // 寝息：ときどき 背中が すこし 上がる
+    if (Math.floor(s / 2) % 3 === 0) { px(ctx, '0', x + 4, y, 5, 1); px(ctx, '9', x + 4, y + 1, 5, 1); }
+    return;
+  }
   const { x, y } = SPOTS.yukashi;
   const ear = happening(s, 23, 0.4, 0.8, 7) !== false;
   drawSprite(ctx, ear ? yukashiEar : yukashi, x, y);
@@ -681,7 +732,8 @@ export class Shop {
     this.lightMaps = {};
   }
 
-  render(date, timeKey = timeKeyOf(date), { music = false } = {}) {
+  // stay：お客さんが 店に いる 秒数
+  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0 } = {}) {
     const ctx = this.ctx, t = TIMES[timeKey];
     const s = date.getTime() / 1000;
     if (!this.room) {
@@ -697,7 +749,7 @@ export class Shop {
     ctx.drawImage(this.room, 0, 0);
     drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
     drawOkuno(ctx, date, s);
-    drawYukashi(ctx, s);
+    drawYukashi(ctx, s, date, stay);
 
     // 窓の 外が そのまま 見えている ところには 光を あてない
     const skip = new Uint8Array(SCENE_W * SCENE_H);
