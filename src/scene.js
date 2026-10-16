@@ -94,6 +94,32 @@ export function timeKeyOf(date) {
   return 'yoru';
 }
 
+// 天気で 変わる 見た目。雨の 日は 昼でも 店の 灯りを つける。霧と 雨は 日が 差さない
+const WEATHER_SKY = {
+  ame: { asa: ['a', 'b', 'b'], hiru: ['a', 'b', 'b'], yu: ['2', 'g', 'a'], yoru: ['l', 'l', 'l'] },
+  kiri: { asa: ['c', 'c', 'p'], hiru: ['c', 'c', 'p'], yu: ['b', 'c', 'c'], yoru: ['m', 'm', 'n'] },
+};
+export function lookOf(timeKey, weather = 'hare') {
+  const t = TIMES[timeKey];
+  if (weather === 'hare') return t;
+  const dim = weather === 'ame' ? [0.8, 0.82, 0.9] : [0.92, 0.92, 0.96];
+  const lamps = t.lamps.map(L => (L.x === 60 && L.y === 56 ? { ...L, color: L.color.map(c => c * 0.45) } : L));
+  const daytime = timeKey === 'asa' || timeKey === 'hiru';
+  if (weather === 'ame' && daytime) {
+    lamps.push(...pendantLights(60, [0.45, 0.32, 0.16]), { ...TABLE_LAMP, r: 55, color: [0.4, 0.28, 0.13] });
+  }
+  return {
+    ...t,
+    sky: WEATHER_SKY[weather][timeKey],
+    stars: false,
+    ambient: t.ambient.map((v, i) => v * dim[i]),
+    lamps,
+    beams: [],
+    lit: t.lit || (weather === 'ame' && daytime),
+    weather,
+  };
+}
+
 export function drawClockHands(ctx, x, y, date) {
   const cx = x + 7.5, cy = y + 7.5;
   const m = date.getMinutes() + date.getSeconds() / 60;
@@ -183,14 +209,14 @@ function drawOutside(ctx, t, timeKey, s) {
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  const [shade, lit] = CLOUD_COLOR[timeKey];
+  const [shade, lit] = t.weather === 'ame' ? ['a', 'a'] : CLOUD_COLOR[timeKey];
   for (const c of CLOUDS) {
     const span = w + 40;
     const cx = x - 20 + (((c.offset + s * c.speed) % span) + span) % span;
     c.parts.forEach(([dx, dy, cw, ch], i) => px(ctx, i === c.parts.length - 1 ? shade : lit, Math.floor(cx + dx), y + c.y + dy, cw, ch));
   }
   // 鳥：昼の あいだ、ときどき 横切る
-  if (timeKey === 'asa' || timeKey === 'hiru') {
+  if ((timeKey === 'asa' || timeKey === 'hiru') && !t.weather) {
     const p = happening(s, 80, 7, 0.7, 3);
     if (p !== false) {
       const bx = Math.floor(x - 4 + p * (w + 8)), by = Math.floor(y + 14 + Math.sin(p * 9) * 3);
@@ -232,6 +258,52 @@ function drawOutside(ctx, t, timeKey, s) {
     }
   }
   px(ctx, dark, cx - 1, cy + 14, 3, y + h - (cy + 14));
+
+  if (t.weather === 'kiri') drawFog(ctx, WIN, t.sky[0], s, 0.55);
+  if (t.weather === 'ame') {
+    drawRain(ctx, WIN, s, timeKey === 'yoru' ? 'n' : 'p', 40);
+    // ガラスを つたう しずく
+    for (let k = 0; k < 4; k++) {
+      const dx = x + 6 + Math.floor(hash(k * 5 + 1) * (w - 12));
+      const dy = y + Math.floor((s * (2 + k) + hash(k) * h) % h);
+      px(ctx, 'c', dx, dy);
+      px(ctx, 'b', dx, dy - 1, 1, 2);
+    }
+  }
+}
+
+// 雨：ななめに 降る 短い 線。本当の 時刻から 位置が 決まる
+export function drawRain(ctx, r, s, key, count, speed = 110) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(r.x, r.y, r.w, r.h);
+  ctx.clip();
+  for (let k = 0; k < count; k++) {
+    const fall = (hash(k + 50) * (r.h + 8) + s * speed * (0.8 + hash(k + 9) * 0.4)) % (r.h + 8);
+    const y = r.y - 4 + Math.floor(fall);
+    const x = r.x + Math.floor(hash(k) * (r.w + 10)) - Math.floor(fall / 4);
+    for (let i = 0; i < 3; i++) px(ctx, key, x - (i >> 1), y + i);
+  }
+  ctx.restore();
+}
+
+// 霧：うすい 層を かぶせて、その上を 霧の 帯が ゆっくり 流れていく
+export function drawFog(ctx, r, key, s = 0, strength = 0.5, bands = true) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(r.x, r.y, r.w, r.h);
+  ctx.clip();
+  ctx.fillStyle = COLOR[key];
+  ctx.globalAlpha = strength;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.globalAlpha = strength * 0.5;
+  for (let k = 0; k < (bands ? 4 : 0); k++) {
+    const by = r.y + Math.floor(r.h * (0.12 + k * 0.22));
+    const bh = Math.max(2, Math.floor(r.h * 0.07));
+    const off = ((s * (1.5 + k * 0.7)) % 50) - 50;
+    for (let x = off; x < r.w + 50; x += 50) ctx.fillRect(Math.floor(r.x + x), by, 32, bh);
+  }
+  ctx.restore();
 }
 
 function drawWindow(ctx) {
@@ -636,11 +708,12 @@ export const PLACES = {
   tana: { label: '本棚の三段目で眠る', x: SHELF.x + 15, y: SHELF.y + 2 + 17 * 3 - 8 },
 };
 
-export function yukashiPlace(date) {
+// 雨や 霧で 日だまりが ない 日は、窓辺で 外を 見ている
+export function yukashiPlace(date, weather = 'hare') {
   const h = date.getHours();
   if (h < 5) return 'tana';
   if (h < 10) return 'isu';
-  if (h < 16) return 'hinata';
+  if (h < 16) return weather === 'hare' ? 'hinata' : 'mado';
   if (h < 19) return 'mado';
   return 'tana';
 }
@@ -666,10 +739,10 @@ function drawVisit(ctx, p, s) {
   drawSprite(ctx, yukashiFront, x, y);
 }
 
-function drawYukashi(ctx, s, date, stay) {
+function drawYukashi(ctx, s, date, stay, weather) {
   const visit = yukashiVisit(stay);
   if (visit !== false) { drawVisit(ctx, visit, s); return; }
-  const place = yukashiPlace(date);
+  const place = yukashiPlace(date, weather);
   if (place !== 'mado') {
     const { x, y } = PLACES[place];
     drawSprite(ctx, yukashiLoaf, x, y);
@@ -740,16 +813,17 @@ export class Shop {
   }
 
   // stay：お客さんが 店に いる 秒数、drink：テーブルの 飲みもの（null なら まだ 来ていない）、
-  // warmth：湯気の すじの 数、bow：おくのさんが 会釈している
-  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0, drink = 'yukashi', warmth = 3, bow = false } = {}) {
-    const ctx = this.ctx, t = TIMES[timeKey];
+  // warmth：湯気の すじの 数、bow：おくのさんが 会釈している、weather：天気（hare・kiri・ame）
+  render(date, timeKey = timeKeyOf(date), { music = false, stay = 0, drink = 'yukashi', warmth = 3, bow = false, weather = 'hare' } = {}) {
+    const ctx = this.ctx, t = lookOf(timeKey, weather);
     const s = date.getTime() / 1000;
     if (!this.room) {
       this.room = document.createElement('canvas');
       this.room.width = SCENE_W; this.room.height = SCENE_H;
       drawRoomLayer(this.room.getContext('2d'));
     }
-    this.lightMaps[timeKey] ??= makeLightMap(SCENE_W, SCENE_H, t);
+    const mapKey = `${timeKey}-${weather}`;
+    this.lightMaps[mapKey] ??= makeLightMap(SCENE_W, SCENE_H, t);
 
     ctx.clearRect(0, 0, SCENE_W, SCENE_H);
     drawOutside(ctx, t, timeKey, s);
@@ -757,7 +831,7 @@ export class Shop {
     ctx.drawImage(this.room, 0, 0);
     drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
     drawOkuno(ctx, date, s, bow);
-    drawYukashi(ctx, s, date, stay);
+    drawYukashi(ctx, s, date, stay, weather);
     if (drink) drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y, { swap: DRINKS[drink].swap });
 
     // 窓の 外が そのまま 見えている ところには 光を あてない
@@ -771,7 +845,7 @@ export class Shop {
         }
       }
     }
-    applyLightMap(ctx, SCENE_W, SCENE_H, this.lightMaps[timeKey], skip);
+    applyLightMap(ctx, SCENE_W, SCENE_H, this.lightMaps[mapKey], skip);
 
     drawGlows(ctx, t, s, music);
     if (drink) drawSteam(ctx, SPOTS.cup.x + 4, SPOTS.cup.y + 1, Math.floor(s * 8) / 8, warmth);

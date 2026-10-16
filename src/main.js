@@ -10,6 +10,7 @@ import { checkIn, recordStay, loadPrefs, savePrefs } from './guest.js';
 import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
 import { greeting, chooseDrink, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
 import { drawFavicon } from './favicon.js';
+import { weatherOf } from './weather.js';
 
 const SCALE = 4; // 画面は 4倍の 細かさで 描く（寄るときに ドットが ゆがまないように）
 const view = document.getElementById('view');
@@ -74,7 +75,9 @@ const style = document.createElement('style');
 style.textContent = JUKEBOX_PANEL_CSS;
 document.head.append(style);
 
-let weather = 'hare';
+// 確認用：?weather=ame で 天気を 決めうちに できる
+const forcedWeather = new URLSearchParams(location.search).get('weather');
+let weather = forcedWeather ?? weatherOf(new Date());
 const panel = createJukeboxPanel(document.getElementById('jukebox'), {
   prefs,
   onChange: applyPrefs,
@@ -112,7 +115,7 @@ async function openDoor() {
   state.guest = checkIn();
   go('opening');
   hint.classList.add('gone');
-  setTimeout(() => say(greeting(state.guest, new Date()), 'door'), 300);
+  setTimeout(() => say(greeting(state.guest, new Date(), weather), 'door'), 300);
   jukebox.volume = prefs.volume;
   setTimeout(async () => {
     if (prefs.playing) await jukebox.start();
@@ -125,9 +128,9 @@ function sitDown() {
   go('stay');
   state.satAt = Date.now();
   const now = performance.now();
-  state.drink = chooseDrink(new Date());
+  state.drink = chooseDrink(new Date(), weather);
   state.script = [
-    [now + 1500, () => say(orderLine(state.guest, state.drink))],
+    [now + 1500, () => say(orderLine(state.guest, state.drink, weather))],
     [now + 7000, serve],
   ];
 }
@@ -164,7 +167,7 @@ async function checkout() {
     stay: stayed(),
     catVisits: catVisits(stayed()),
     hitorigotoCount: state.hitorigotoCount,
-    words: state.lastWords ?? await nextHitorigoto(),
+    words: state.lastWords ?? await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()) }),
   });
   receiptEl.hidden = false;
   receiptEl.querySelector('.r-stay').focus();
@@ -251,14 +254,18 @@ function draw(now) {
   const date = new Date();
   const key = timeKeyOf(date);
   const e = (now - state.phaseAt) / 1000;
+  weather = forcedWeather ?? weatherOf(date);
   const music = !!jukebox?.playing;
   if (music) jukebox.follow(prefs.mode, key, weather);
+  // 雨音は、店の 中に いて、音楽を 鳴らしている ときだけ
+  const indoors = ['walk', 'sit', 'stay'].includes(state.phase);
+  jukebox?.setRain(music && indoors && weather === 'ame');
   updateSong();
 
   // 店を 出る：暗転して、表から ドアが 閉まるのを 見る
   if (state.phase === 'leaving' && e >= 0.8) {
     const open = e < 1.8 ? 1 : Math.max(0, 1 - (e - 1.8) / 0.6);
-    drawFacade(lctx, key, { open, cat: yukashiPlace(date) === 'mado', s: date.getTime() / 1000 });
+    drawFacade(lctx, key, { open, cat: yukashiPlace(date, weather) === 'mado', s: date.getTime() / 1000, weather });
     ctx.drawImage(layer, 0, 0, view.width, view.height);
     fade(1 - (e - 0.8) / 0.6);
     if (!state.closedBell && e > 2.2) { state.closedBell = true; jukebox?.bell(); }
@@ -272,7 +279,7 @@ function draw(now) {
 
   if (state.phase === 'door' || state.phase === 'opening') {
     const open = state.phase === 'opening' ? Math.min(1, e / 0.8) : 0;
-    drawFacade(lctx, key, { open, cat: yukashiPlace(date) === 'mado', s: date.getTime() / 1000 });
+    drawFacade(lctx, key, { open, cat: yukashiPlace(date, weather) === 'mado', s: date.getTime() / 1000, weather });
     ctx.drawImage(layer, 0, 0, view.width, view.height);
     if (state.phase === 'opening') {
       // ドアの 向こうへ 寄っていって、暗転
@@ -298,6 +305,7 @@ function draw(now) {
     drink: state.served ? state.drink : null,
     warmth,
     bow: now < state.bowUntil,
+    weather,
   });
 
   if (state.phase === 'walk') {
@@ -361,7 +369,7 @@ view.addEventListener('click', async ev => {
   const t = target(scenePoint(ev));
   if (t === 'door') openDoor();
   else if (t === 'okuno') {
-    state.lastWords = await nextHitorigoto();
+    state.lastWords = await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()) });
     state.hitorigotoCount++;
     say(state.lastWords);
   }

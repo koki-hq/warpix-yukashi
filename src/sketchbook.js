@@ -9,6 +9,8 @@ import {
 import { nextHitorigoto } from './hitorigoto.js';
 import { Jukebox, SONGS, SONG_ORDER, GENRES } from './music.js';
 import { VERSION } from './version.js';
+import { weatherOf, WEATHERS } from './weather.js';
+import { drawFacade, FACADE_W, FACADE_H } from './facade.js';
 
 const params = new URLSearchParams(location.search);
 // 確認用：?time=18:30 で その時刻から、?speed=60 で 60倍速
@@ -138,18 +140,34 @@ document.getElementById('listen-copy').addEventListener('click', async () => {
   }
 });
 
+// ---- 天気 ----
+let chosenWeather = params.get('weather') ?? 'now';
+const currentWeather = () => (chosenWeather === 'now' ? weatherOf(now()) : chosenWeather);
+const weatherButtons = ['now', ...Object.keys(WEATHERS)].map(key => {
+  const b = document.createElement('button');
+  b.textContent = key === 'now' ? 'いまの天気' : WEATHERS[key];
+  b.addEventListener('click', () => { chosenWeather = key; draw(); });
+  document.getElementById('weather-tabs').append(b);
+  return [key, b];
+});
+
 function draw() {
   const d = now();
   const key = currentKey();
+  const weather = currentWeather();
+  for (const [k, b] of weatherButtons) b.setAttribute('aria-pressed', String(k === chosenWeather));
   const music = !!jukebox?.playing;
-  if (music) jukebox.follow(mode, key, 'hare');
+  if (music) jukebox.follow(mode, key, weather);
+  jukebox?.setRain(music && weather === 'ame');
   songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
-  shop.render(d, key, { music, stay: stay() });
+  shop.render(d, key, { music, stay: stay(), weather });
+  drawFacade(facadeCtx, key, { cat: yukashiPlace(d, weather) === 'mado', s: d.getTime() / 1000, weather });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
-  const cat = yukashiVisit(stay()) !== false ? 'あなたのテーブルに来ている' : PLACES[yukashiPlace(d)].label;
-  status.textContent = `${hh}:${mm}　おくのさん：${ACTIVITIES[okunoActivity(d)]}　ゆかし：${cat}　滞在 ${Math.floor(stay() / 60)}分`;
+  const cat = yukashiVisit(stay()) !== false ? 'あなたのテーブルに来ている' : PLACES[yukashiPlace(d, weather)].label;
+  status.textContent = `${hh}:${mm}　${WEATHERS[weather]}　おくのさん：${ACTIVITIES[okunoActivity(d)]}　ゆかし：${cat}　滞在 ${Math.floor(stay() / 60)}分`;
 }
+const [, facadeCtx] = makeCanvas(FACADE_W, FACADE_H, document.getElementById('facade'));
 
 const inside = (spot, x, y, pad = 2) => x >= spot.x - pad && x < spot.x + spot.w + pad && y >= spot.y - pad && y < spot.y + spot.h + pad;
 
@@ -157,7 +175,7 @@ sceneEl.addEventListener('click', async e => {
   const r = sceneEl.getBoundingClientRect();
   const x = ((e.clientX - r.left) / r.width) * SCENE_W;
   const y = ((e.clientY - r.top) / r.height) * SCENE_H;
-  if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto();
+  if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto({ weather: currentWeather(), timeKey: currentKey() });
   else if (inside(SPOTS.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
   else if (inside(SPOTS.jukebox, x, y, 0)) await playMode(mode);
 });

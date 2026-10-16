@@ -1,7 +1,7 @@
 // 店の 表。坂の 途中の 古い 洋館の 一階（320×180）。ドアを クリックして 入店する。
 import { drawSprite, px, seeded, makeLightMap, applyLightMap } from './pixel.js';
 import { yukashiFront } from './sprites.js';
-import { TIMES } from './scene.js';
+import { lookOf, drawRain, drawFog } from './scene.js';
 
 export const FACADE_W = 320;
 export const FACADE_H = 180;
@@ -164,19 +164,33 @@ function drawSignAndPlants(ctx) {
   px(ctx, '1', 302, 58, 10, 8);
 }
 
-export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0 } = {}) {
-  const t = TIMES[timeKey];
-  const lit = timeKey === 'yu' || timeKey === 'yoru';
+// 傘立て（雨の 日だけ、傘が 一本 さしてある）
+function drawUmbrellaStand(ctx) {
+  px(ctx, '1', 108, GROUND - 10, 8, 10);
+  px(ctx, 'a', 109, GROUND - 9, 6, 9);
+  px(ctx, 'm', 110, GROUND - 24, 3, 15);
+  px(ctx, 'n', 110, GROUND - 24, 1, 15);
+  px(ctx, '0', 111, GROUND - 27, 1, 3);
+  px(ctx, 'h', 112, GROUND - 28, 2, 1);
+  px(ctx, 'h', 113, GROUND - 27, 1, 2);
+}
+
+export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0, weather = 'hare' } = {}) {
+  const t = lookOf(timeKey, weather);
+  const lit = t.lit === true;
   drawSkyAndGround(ctx, t);
   drawBuilding(ctx);
   for (const w of WINDOWS) { drawWindowFrame(ctx, w); drawWindowGlass(ctx, w, t, lit); }
-  // 夕方の 窓辺に ゆかし（中から 外を 見ている）
+  // 窓辺に ゆかし（中から 外を 見ている）
   if (cat) drawSprite(ctx, yukashiFront, WINDOWS[1].x + 50, WINDOWS[1].y + WINDOWS[1].h - 18);
   drawDoor(ctx, open, lit);
   drawSignAndPlants(ctx);
+  if (weather === 'ame') drawUmbrellaStand(ctx);
 
-  const L = FACADE_LIGHT[timeKey];
-  const key = `facade-${timeKey}`;
+  const base = FACADE_LIGHT[timeKey];
+  const dim = weather === 'ame' ? [0.78, 0.8, 0.9] : weather === 'kiri' ? [0.92, 0.92, 0.96] : [1, 1, 1];
+  const L = { ...base, ambient: base.ambient.map((v, i) => v * dim[i]) };
+  const key = `facade-${timeKey}-${weather}`;
   drawFacade.maps ??= {};
   drawFacade.maps[key] ??= makeLightMap(FACADE_W, FACADE_H, L);
   const skip = new Uint8Array(FACADE_W * FACADE_H);
@@ -188,6 +202,19 @@ export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0 } = {}) 
   if (lit || open > 0) mark(DOOR);
   applyLightMap(ctx, FACADE_W, FACADE_H, drawFacade.maps[key], skip);
   if (timeKey === 'yoru') { px(ctx, 'k', 303, 64, 8, 2); }
-  // 窓に 映る 星（夜）
-  if (timeKey === 'yoru') [[30, 3], [90, 6], [260, 2], [310, 8], [6, 10]].forEach(([x, y], i) => { if (Math.floor(s + i) % 5) px(ctx, 'p', x, y); });
+  // 星（晴れた 夜）
+  if (timeKey === 'yoru' && weather === 'hare') [[30, 3], [90, 6], [260, 2], [310, 8], [6, 10]].forEach(([x, y], i) => { if (Math.floor(s + i) % 5) px(ctx, 'p', x, y); });
+
+  if (weather === 'ame') {
+    // ぬれた 石畳に、窓の 灯りが 映る
+    for (const w of WINDOWS) {
+      for (let k = 0; k < 5; k++) px(ctx, lit ? 'j' : 'b', w.x + 8 + k * 15, GROUND + 6 + (k % 3) * 5, 8 - (k % 3) * 2, 1);
+    }
+    drawRain(ctx, { x: 0, y: 0, w: FACADE_W, h: FACADE_H }, s, timeKey === 'yoru' ? 'n' : 'p', 140);
+  }
+  if (weather === 'kiri') {
+    // 上ほど 濃い 霧（坂の 上へ 行くほど 白く かすむ）
+    drawFog(ctx, { x: 0, y: 0, w: FACADE_W, h: FACADE_H }, 'c', s, 0.22, false);
+    drawFog(ctx, { x: 0, y: 0, w: FACADE_W, h: 62 }, 'c', s, 0.2, false);
+  }
 }

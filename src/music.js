@@ -501,6 +501,34 @@ export class Jukebox {
 
   get title() { return this.song?.title ?? ''; }
 
+  // 雨音：ノイズを やわらかく 削って、ずっと 流す。音量は ジュークボックスと いっしょに 変わる
+  setRain(on) {
+    const ctx = this.ctx;
+    if (on && !this.rainSrc) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const hp = this.filter('highpass', 300);
+      const lp = this.filter('lowpass', 1400);
+      this.rainLevel = 0.06;
+      this.rainGain = ctx.createGain();
+      this.rainGain.gain.value = 0;
+      src.connect(hp);
+      hp.connect(lp);
+      lp.connect(this.rainGain);
+      this.rainGain.connect(ctx.destination);
+      src.start();
+      this.rainSrc = src;
+      this.rainGain.gain.setTargetAtTime(this.rainLevel * this.volume, ctx.currentTime, 1.5);
+    } else if (!on && this.rainSrc) {
+      const src = this.rainSrc, g = this.rainGain;
+      g.gain.setTargetAtTime(0, ctx.currentTime, 0.8);
+      setTimeout(() => { src.stop(); g.disconnect(); }, 5000);
+      this.rainSrc = null;
+      this.rainGain = null;
+    }
+  }
+
   // ---- 効果音（音楽を 止めていても 鳴る） ----
 
   chime(midi, t, dur, vol) {
