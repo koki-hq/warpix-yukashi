@@ -28,9 +28,9 @@
   #hint.gone { opacity: 0; }
   #song { font: inherit; color: var(--dim); background: none; border: 0; padding: 0; cursor: pointer; margin-left: auto; }
   #song:empty { display: none; }
-  #song:hover, #checkout:hover { color: var(--ink); }
-  #checkout { font: inherit; color: var(--dim); background: none; border: 2px solid #3e2a24; padding: 0 10px; cursor: pointer; margin-right: auto; }
-  #checkout[hidden] { display: none; }
+  #song:hover, #checkout:hover, #move:hover { color: var(--ink); }
+  #checkout, #move { font: inherit; color: var(--dim); background: none; border: 2px solid #3e2a24; padding: 0 10px; cursor: pointer; margin-right: 8px; }
+  #checkout[hidden], #move[hidden] { display: none; }
   #hint.gone { display: none; }
   .receipt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 16px; background: rgba(13, 9, 9, .55); z-index: 6; padding: 2%; }
   .receipt[hidden] { display: none; }
@@ -57,6 +57,7 @@
     <div class="below">
       <span id="hint">ドアをクリックして、どうぞ。</span>
       <button id="checkout" hidden>お会計</button>
+      <button id="move" hidden>席を移る</button>
       <button id="song" aria-pressed="false"></button>
     </div>
   </div>

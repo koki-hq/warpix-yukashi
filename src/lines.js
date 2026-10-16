@@ -47,6 +47,8 @@ export const SWEET_LINES = {
 };
 
 export const SERVED = 'どうぞ、ごゆっくり。';
+export const MOVE_TO_COUNTER = 'どうぞ、こちらへ。カウンターからは、地図の続きがよく見えますよ。';
+export const MOVE_TO_KADO = '奥の席も、いいですよ。店がぜんぶ見えますから。';
 export const CHECKOUT = 'ありがとうございました。';
 export const STAY_MORE = 'ええ、どうぞ。いくらでも。';
 

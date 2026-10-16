@@ -13,6 +13,7 @@ import { weatherOf, WEATHERS } from './weather.js';
 import { chooseSweet } from './lines.js';
 import { seasonOf, sekkiOf, moonPhase, moonName, SEASONS } from './koyomi.js';
 import { drawFacade, FACADE_W, FACADE_H } from './facade.js';
+import { CounterView, COUNTER_SPOTS } from './counter.js';
 
 const params = new URLSearchParams(location.search);
 // 確認用：?time=18:30 で その時刻から、?speed=60 で 60倍速
@@ -51,6 +52,17 @@ const status = document.getElementById('status');
 // ---- 角の 席から ----
 const [sceneEl, sceneCtx] = makeCanvas(SCENE_W, SCENE_H, document.getElementById('scene'));
 const shop = new Shop(sceneCtx);
+const counterView = new CounterView(sceneCtx);
+// 席：kado（角の 席）か counter（カウンター席）。?seat=counter でも 選べる
+let seat = params.get('seat') ?? 'kado';
+const SEATS = { kado: '角の席', counter: 'カウンター席' };
+const seatButtons = Object.entries(SEATS).map(([key, label]) => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.addEventListener('click', () => { seat = key; draw(); });
+  document.getElementById('seat-tabs').append(b);
+  return [key, b];
+});
 let chosen = params.get('view') ?? 'now'; // now か 時間帯の キー
 
 const tabs = document.getElementById('tabs');
@@ -168,7 +180,9 @@ function draw() {
   if (music) jukebox.follow(mode, key, weather);
   jukebox?.setRain(music && weather === 'ame');
   songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
-  shop.render(d, key, { music, stay: stay(), weather, sweet: chooseSweet(d), sweetLeft: params.get('left') ? Number(params.get('left')) : 1 });
+  const opts = { music, stay: stay(), weather, sweet: chooseSweet(d), sweetLeft: params.get('left') ? Number(params.get('left')) : 1 };
+  (seat === 'counter' ? counterView : shop).render(d, key, opts);
+  for (const [k, b] of seatButtons) b.setAttribute('aria-pressed', String(k === seat));
   drawFacade(facadeCtx, key, { cat: yukashiPlace(d, weather) === 'mado', s: d.getTime() / 1000, weather });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
@@ -183,9 +197,10 @@ sceneEl.addEventListener('click', async e => {
   const r = sceneEl.getBoundingClientRect();
   const x = ((e.clientX - r.left) / r.width) * SCENE_W;
   const y = ((e.clientY - r.top) / r.height) * SCENE_H;
-  if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto({ weather: currentWeather(), timeKey: currentKey(), season: seasonOf(now()) });
-  else if (inside(SPOTS.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
-  else if (inside(SPOTS.jukebox, x, y, 0)) await playMode(mode);
+  const spots = seat === 'counter' ? COUNTER_SPOTS : SPOTS;
+  if (inside(spots.okuno, x, y)) bubble.textContent = await nextHitorigoto({ weather: currentWeather(), timeKey: currentKey(), season: seasonOf(now()) });
+  else if (inside(spots.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
+  else if (spots.jukebox && inside(spots.jukebox, x, y, 0)) await playMode(mode);
 });
 
 // ---- 時間帯の 光 ----

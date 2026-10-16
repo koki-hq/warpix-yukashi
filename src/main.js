@@ -3,12 +3,13 @@
 // 流れ：door（店の 表）→ opening（ドアが 開く）→ walk（席まで 歩く）→ sit（座る）→ stay（過ごす）
 import { Shop, SPOTS, DRINKS, SWEETS, VISIT, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
 import { drawReceipt, saveReceipt } from './receipt.js';
+import { CounterView, COUNTER_SPOTS } from './counter.js';
 import { drawFacade, DOOR } from './facade.js';
 import { Jukebox } from './music.js';
 import { nextHitorigoto } from './hitorigoto.js';
 import { checkIn, recordStay, loadPrefs, savePrefs } from './guest.js';
 import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
-import { greeting, chooseDrink, chooseSweet, SWEET_LINES, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
+import { greeting, chooseDrink, chooseSweet, SWEET_LINES, orderLine, farewell, MOVE_TO_COUNTER, MOVE_TO_KADO, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
 import { drawFavicon } from './favicon.js';
 import { weatherOf } from './weather.js';
 import { seasonOf, sekkiOf } from './koyomi.js';
@@ -26,6 +27,7 @@ layer.width = W;
 layer.height = H;
 const lctx = layer.getContext('2d', { willReadFrequently: true });
 const shop = new Shop(lctx);
+const counterView = new CounterView(lctx);
 
 const bubble = document.getElementById('bubble');
 const hint = document.getElementById('hint');
@@ -59,8 +61,10 @@ function go(phase) {
 
 let bubbleTimer = 0;
 function say(text, spot = 'okuno') {
+  const counter = prefs.seat === 'counter' && state.phase !== 'walk';
   const anchor = spot === 'door' ? { x: DOOR.x + DOOR.w / 2, y: DOOR.y - 8 }
-    : spot === 'cat' ? { x: 84, y: 142 }
+    : spot === 'cat' ? (counter ? { x: 216, y: 130 } : { x: 84, y: 142 })
+    : counter ? { x: 140, y: 32 }
     : { x: SPOTS.okuno.x + 6, y: SPOTS.okuno.y - 3 };
   bubble.textContent = text;
   bubble.style.left = `${(anchor.x / W) * 100}%`;
@@ -148,6 +152,7 @@ function serve() {
   say(state.sweet ? SWEET_LINES[state.sweet] : SERVED);
   updateCoffee();
   checkoutButton.hidden = false;
+  moveButton.hidden = false;
 }
 
 // 甘いものは 8分で 半分、18分で 食べおわる
@@ -191,6 +196,7 @@ function leave() {
   jukebox?.stop(); // 好みの「止めた」は 覚えない。帰るので 止めるだけ
   updateSong();
   checkoutButton.hidden = true;
+  moveButton.hidden = true;
   go('leaving');
 }
 
@@ -203,6 +209,15 @@ function resetVisit() {
 }
 
 checkoutButton.addEventListener('click', checkout);
+
+// 席を 移る
+const moveButton = document.getElementById('move');
+moveButton.addEventListener('click', () => {
+  if (state.phase !== 'stay') return;
+  panel.close();
+  bubble.classList.remove('show');
+  go('moving');
+});
 receiptEl.querySelector('.r-save').addEventListener('click', () => saveReceipt(receiptCanvas, receiptDate));
 receiptEl.querySelector('.r-stay').addEventListener('click', () => { receiptEl.hidden = true; say(STAY_MORE); });
 receiptEl.querySelector('.r-leave').addEventListener('click', leave);
@@ -311,7 +326,9 @@ function draw(now) {
 
   const stay = state.satAt ? (Date.now() - state.satAt) / 1000 : 0;
   const { warmth } = coffee();
-  shop.render(date, key, {
+  // 歩いている あいだは 店全体、座ったら 選んだ 席から
+  const seated = state.phase !== 'walk' && prefs.seat === 'counter';
+  (seated ? counterView : shop).render(date, key, {
     music,
     stay,
     drink: state.served ? state.drink : null,
@@ -327,8 +344,14 @@ function draw(now) {
     const p = Math.min(1, e / 4.2);
     const k = ease(p);
     const bob = Math.round(Math.sin(e * Math.PI * 2 * 1.6)) * (1 - p) * 1.2;
-    camera(1.8 - 0.8 * k, 200 - 40 * k, 86 + 4 * k + bob);
-    fade(1 - e / 0.6);
+    if (prefs.seat === 'counter') {
+      // カウンター席へ：カウンターに 近づいて、暗転して 座る
+      camera(1.8 + 0.8 * k, 196, 88 + bob);
+      fade(Math.max(1 - e / 0.6, (e - 3.6) / 0.6));
+    } else {
+      camera(1.8 - 0.8 * k, 200 - 40 * k, 86 + 4 * k + bob);
+      fade(1 - e / 0.6);
+    }
     if (p >= 1) go('sit');
     return;
   }
@@ -336,12 +359,31 @@ function draw(now) {
     // 腰を おろす：視線が すっと 下がって、もどる
     const p = Math.min(1, e / 0.7);
     camera(1, 160, 90 + Math.sin(p * Math.PI) * 3);
+    if (prefs.seat === 'counter') fade(1 - e / 0.5);
     if (p >= 1) sitDown();
     return;
   }
   if (state.phase === 'leaving') {
     ctx.drawImage(layer, 0, 0, view.width, view.height);
     fade(e / 0.8);
+    return;
+  }
+  if (state.phase === 'moving') {
+    // 席を 移る：暗転して、もう 一方の 席へ
+    ctx.drawImage(layer, 0, 0, view.width, view.height);
+    if (e < 0.5) { fade(e / 0.5); return; }
+    if (!state.moved) {
+      state.moved = true;
+      prefs.seat = prefs.seat === 'counter' ? 'kado' : 'counter';
+      savePrefs(prefs);
+      return;
+    }
+    fade(1 - (e - 0.5) / 0.5);
+    if (e > 1) {
+      state.moved = false;
+      state.phase = 'stay';
+      say(prefs.seat === 'counter' ? MOVE_TO_COUNTER : MOVE_TO_KADO);
+    }
     return;
   }
 
@@ -371,10 +413,13 @@ const inside = (spot, p, pad = 2) => p.x >= spot.x - pad && p.x < spot.x + spot.
 function target(p) {
   if (state.phase === 'door') return inside(DOOR, p, 4) ? 'door' : null;
   if (state.phase !== 'stay') return null;
-  if (yukashiVisit((Date.now() - state.satAt) / 1000) !== false && inside({ x: 74, y: 146, w: 20, h: 18 }, p)) return 'cat';
-  if (inside(SPOTS.okuno, p)) return 'okuno';
-  if (inside(SPOTS.notebook, p, 1)) return 'notebook';
-  if (inside(SPOTS.jukebox, p, 0)) return 'jukebox';
+  const counter = prefs.seat === 'counter';
+  const spots = counter ? COUNTER_SPOTS : SPOTS;
+  const catSpot = counter ? COUNTER_SPOTS.cat : { x: 74, y: 146, w: 20, h: 18 };
+  if (yukashiVisit((Date.now() - state.satAt) / 1000) !== false && inside(catSpot, p)) return 'cat';
+  if (inside(spots.okuno, p)) return 'okuno';
+  if (inside(spots.notebook, p, 1)) return 'notebook';
+  if (spots.jukebox && inside(spots.jukebox, p, 0)) return 'jukebox';
   return null;
 }
 

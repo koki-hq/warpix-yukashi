@@ -19,10 +19,10 @@ export function saveGuest(guest) {
   }
 }
 
-// ジュークボックスの 好み：選曲の しかた、音量、鳴らすか どうか
+// 好み：ジュークボックスの 選曲の しかた、音量、鳴らすか どうか。座る 席（kado：角の 席、counter：カウンター席）
 const PREFS_KEY = 'kissa-yukashi.prefs';
 export function loadPrefs() {
-  const base = { mode: 'omakase', volume: 0.6, playing: true };
+  const base = { mode: 'omakase', volume: 0.6, playing: true, seat: 'kado' };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
   } catch {
