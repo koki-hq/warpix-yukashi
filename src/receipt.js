@@ -35,7 +35,7 @@ export async function drawReceipt(canvas, data) {
   // 先に 高さを 測る
   g.font = font(11);
   const words = wrap(g, `「${data.words}」`, (W - pad * 2) * S);
-  const rows = 15 + data.items.length + words.length;
+  const rows = 16 + data.items.length + words.length;
   const H = 40 + rows * 16 + 8;
   canvas.width = W * S;
   canvas.height = H * S;
@@ -75,6 +75,7 @@ export async function drawReceipt(canvas, data) {
   center('月見坂中腹　坂の途中', 10, dim);
   y += 4; rule();
   row(`${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${WEEK[d.getDay()]}）`, `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+  if (data.koyomi) row(data.koyomi, '', dim);
   row('ご来店', `${data.visit}回目`, dim);
   rule();
   for (const [name, n] of data.items) row(name, `×${n}`);

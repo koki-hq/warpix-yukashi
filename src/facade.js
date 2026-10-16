@@ -1,7 +1,8 @@
 // 店の 表。坂の 途中の 古い 洋館の 一階（320×180）。ドアを クリックして 入店する。
 import { drawSprite, px, seeded, makeLightMap, applyLightMap } from './pixel.js';
 import { yukashiFront } from './sprites.js';
-import { lookOf, drawRain, drawFog } from './scene.js';
+import { lookOf, drawRain, drawFog, drawSnow } from './scene.js';
+import { seasonOf } from './koyomi.js';
 
 export const FACADE_W = 320;
 export const FACADE_H = 180;
@@ -39,7 +40,10 @@ function drawSkyAndGround(ctx, t) {
   }
 }
 
-function drawBuilding(ctx) {
+// 二階の 花箱の 花：季節で 変わる
+const BOX_FLOWERS = { haru: ['q', '9'], natsu: ['h', 'i'], aki: ['i', 'j'], fuyu: null };
+
+function drawBuilding(ctx, season) {
   // 二階：しっくいと 木の 梁
   px(ctx, '1', 14, 0, 292, 4);
   px(ctx, '8', 18, 4, 284, 58);
@@ -61,7 +65,11 @@ function drawBuilding(ctx) {
   }
   // 窓辺の 花箱
   px(ctx, '3', 170, 36, 28, 4);
-  for (let i = 0; i < 9; i++) { px(ctx, 'e', 171 + i * 3, 33, 2, 3); px(ctx, i % 2 ? 'h' : 'i', 171 + i * 3, 32, 2, 1); }
+  const flowers = BOX_FLOWERS[season];
+  for (let i = 0; i < 9; i++) {
+    px(ctx, flowers ? 'e' : '4', 171 + i * 3, 33, 2, 3);
+    if (flowers) px(ctx, flowers[i % 2], 171 + i * 3, 32, 2, 1);
+  }
 
   // 日よけ：葡萄酒色と 生成りの しま。下は 波形
   const ay = 62;
@@ -237,16 +245,16 @@ export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0, weather
   const t = lookOf(timeKey, weather);
   const lit = t.lit === true;
   drawSkyAndGround(ctx, t);
-  drawBuilding(ctx);
+  drawBuilding(ctx, seasonOf(new Date(s * 1000)));
   WINDOWS.forEach((w, i) => { drawWindowFrame(ctx, w); drawWindowGlass(ctx, w, t, lit, i); });
   // 窓辺に ゆかし（中から 外を 見ている）
   if (cat) drawSprite(ctx, yukashiFront, WINDOWS[1].x + 50, WINDOWS[1].y + WINDOWS[1].h - 18);
   drawDoor(ctx, open, lit);
   drawSignAndPlants(ctx);
-  if (weather === 'ame') drawUmbrellaStand(ctx);
+  if (weather === 'ame' || weather === 'yuki') drawUmbrellaStand(ctx);
 
   const base = FACADE_LIGHT[timeKey];
-  const dim = weather === 'ame' ? [0.78, 0.8, 0.9] : weather === 'kiri' ? [0.92, 0.92, 0.96] : [1, 1, 1];
+  const dim = { ame: [0.78, 0.8, 0.9], kiri: [0.92, 0.92, 0.96], yuki: [0.9, 0.9, 0.98] }[weather] ?? [1, 1, 1];
   const L = { ...base, ambient: base.ambient.map((v, i) => v * dim[i]) };
   const key = `facade-${timeKey}-${weather}`;
   drawFacade.maps ??= {};
@@ -269,6 +277,13 @@ export function drawFacade(ctx, timeKey, { open = 0, cat = false, s = 0, weather
       for (let k = 0; k < 5; k++) px(ctx, lit ? 'j' : 'b', w.x + 8 + k * 15, GROUND + 6 + (k % 3) * 5, 8 - (k % 3) * 2, 1);
     }
     drawRain(ctx, { x: 0, y: 0, w: FACADE_W, h: FACADE_H }, s, timeKey === 'yoru' ? 'n' : 'p', 140);
+  }
+  if (weather === 'yuki') {
+    // 日よけと 窓台と 石畳に 雪が つもる
+    px(ctx, 'c', 24, 60, 272, 2);
+    for (const w of WINDOWS) px(ctx, 'c', w.x - 3, w.y + w.h + 3, w.w + 6, 1);
+    for (let x = 0; x < FACADE_W; x += 7) px(ctx, x % 3 ? 'c' : 'b', x, GROUND + (x % 5), 5, 1);
+    drawSnow(ctx, { x: 0, y: 0, w: FACADE_W, h: FACADE_H }, s, 90);
   }
   if (weather === 'kiri') {
     // 上ほど 濃い 霧（坂の 上へ 行くほど 白く かすむ）

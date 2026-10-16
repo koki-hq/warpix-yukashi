@@ -128,8 +128,8 @@ export const SONGS = Object.fromEntries(SONG_LIST.map(s => [s.id, {
 export const SONG_ORDER = SONG_LIST.map(s => s.id);
 
 // 「おまかせ」で 流れる 曲
-export const OMAKASE = { asa: 'kiri', hiru: 'chizucho', yu: 'toudai', yoru: 'nocturne', ame: 'amayadori', kiri: 'sakashita' };
-export const omakaseSong = (timeKey, weather) => OMAKASE[weather === 'ame' || weather === 'kiri' ? weather : timeKey];
+export const OMAKASE = { asa: 'kiri', hiru: 'chizucho', yu: 'toudai', yoru: 'nocturne', ame: 'amayadori', kiri: 'sakashita', yuki: 'lamp' };
+export const omakaseSong = (timeKey, weather) => OMAKASE[weather in OMAKASE && weather !== 'hare' ? weather : timeKey];
 
 // 和音を、前の 和音と 近い 高さに 並べる
 function voicing(chord, low, high, { withRoot = true } = {}) {

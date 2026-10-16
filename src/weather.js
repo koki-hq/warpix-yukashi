@@ -10,7 +10,9 @@ function hash(n) {
 
 const local = date => date.getTime() - date.getTimezoneOffset() * 60000;
 
-export const WEATHERS = { hare: '晴れ', kiri: '霧', ame: '雨' };
+import { seasonOf } from './koyomi.js';
+
+export const WEATHERS = { hare: '晴れ', kiri: '霧', ame: '雨', yuki: '雪' };
 
 // 霧の 朝：日付で 決まる。三日に 一日くらい、5時から 10時まで
 export function isFoggyMorning(date) {
@@ -25,8 +27,9 @@ export function isRainy(date) {
   return hash(block * 3.7 + 5) < 0.17;
 }
 
+// 冬の 雨は 雪に なる
 export function weatherOf(date) {
-  if (isRainy(date)) return 'ame';
+  if (isRainy(date)) return seasonOf(date) === 'fuyu' ? 'yuki' : 'ame';
   if (isFoggyMorning(date)) return 'kiri';
   return 'hare';
 }

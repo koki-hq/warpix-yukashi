@@ -11,6 +11,7 @@ import { Jukebox, SONGS, SONG_ORDER, GENRES } from './music.js';
 import { VERSION } from './version.js';
 import { weatherOf, WEATHERS } from './weather.js';
 import { chooseSweet } from './lines.js';
+import { seasonOf, sekkiOf, moonPhase, moonName, SEASONS } from './koyomi.js';
 import { drawFacade, FACADE_W, FACADE_H } from './facade.js';
 
 const params = new URLSearchParams(location.search);
@@ -18,6 +19,12 @@ const params = new URLSearchParams(location.search);
 const startReal = Date.now();
 const startShop = (() => {
   const d = new Date();
+  // ?date=2027-01-15 で 日付も 決めうちに できる（季節や 月を 見る ため）
+  const ymd = params.get('date');
+  if (ymd) {
+    const [y, mo, da] = ymd.split('-').map(Number);
+    d.setFullYear(y, mo - 1, da);
+  }
   const t = params.get('time');
   if (t) {
     const [h, m] = t.split(':').map(Number);
@@ -166,7 +173,7 @@ function draw() {
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
   const cat = yukashiVisit(stay()) !== false ? 'あなたのテーブルに来ている' : PLACES[yukashiPlace(d, weather)].label;
-  status.textContent = `${hh}:${mm}　${WEATHERS[weather]}　おくのさん：${ACTIVITIES[okunoActivity(d)]}　ゆかし：${cat}　滞在 ${Math.floor(stay() / 60)}分`;
+  status.textContent = `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}　${sekkiOf(d)}（${SEASONS[seasonOf(d)]}）・${moonName(moonPhase(d))}　${WEATHERS[weather]}　おくのさん：${ACTIVITIES[okunoActivity(d)]}　ゆかし：${cat}　滞在 ${Math.floor(stay() / 60)}分`;
 }
 const [, facadeCtx] = makeCanvas(FACADE_W, FACADE_H, document.getElementById('facade'));
 
@@ -176,7 +183,7 @@ sceneEl.addEventListener('click', async e => {
   const r = sceneEl.getBoundingClientRect();
   const x = ((e.clientX - r.left) / r.width) * SCENE_W;
   const y = ((e.clientY - r.top) / r.height) * SCENE_H;
-  if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto({ weather: currentWeather(), timeKey: currentKey() });
+  if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto({ weather: currentWeather(), timeKey: currentKey(), season: seasonOf(now()) });
   else if (inside(SPOTS.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
   else if (inside(SPOTS.jukebox, x, y, 0)) await playMode(mode);
 });

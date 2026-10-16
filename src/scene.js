@@ -9,6 +9,7 @@
 //   5. 灯り そのものと 湯気（光の 影響を 受けない）
 import { drawSprite, px, line, seeded, makeLightMap, applyLightMap } from './pixel.js';
 import { COLOR } from './palette.js';
+import { seasonOf, moonPhase } from './koyomi.js';
 import {
   cup, clock, okuno, okunoLook, okunoDown, monsteraLeaf,
   yukashi, yukashiEar, yukashiLoaf, yukashiFront, yukashiFrontBlink,
@@ -99,14 +100,17 @@ export function timeKeyOf(date) {
 const WEATHER_SKY = {
   ame: { asa: ['a', 'b', 'b'], hiru: ['a', 'b', 'b'], yu: ['2', 'g', 'a'], yoru: ['l', 'l', 'l'] },
   kiri: { asa: ['c', 'c', 'p'], hiru: ['c', 'c', 'p'], yu: ['b', 'c', 'c'], yoru: ['m', 'm', 'n'] },
+  yuki: { asa: ['b', 'c', 'c'], hiru: ['b', 'c', 'c'], yu: ['a', 'b', 'b'], yoru: ['m', 'm', 'l'] },
 };
+const WEATHER_DIM = { ame: [0.8, 0.82, 0.9], kiri: [0.92, 0.92, 0.96], yuki: [0.9, 0.9, 0.98] };
 export function lookOf(timeKey, weather = 'hare') {
   const t = TIMES[timeKey];
   if (weather === 'hare') return t;
-  const dim = weather === 'ame' ? [0.8, 0.82, 0.9] : [0.92, 0.92, 0.96];
+  const dim = WEATHER_DIM[weather];
   const lamps = t.lamps.map(L => (L.x === 60 && L.y === 56 ? { ...L, color: L.color.map(c => c * 0.45) } : L));
   const daytime = timeKey === 'asa' || timeKey === 'hiru';
-  if (weather === 'ame' && daytime) {
+  const gloomy = weather === 'ame' || weather === 'yuki';
+  if (gloomy && daytime) {
     lamps.push(...pendantLights(60, [0.45, 0.32, 0.16]), { ...TABLE_LAMP, r: 55, color: [0.4, 0.28, 0.13] });
   }
   return {
@@ -116,9 +120,64 @@ export function lookOf(timeKey, weather = 'hare') {
     ambient: t.ambient.map((v, i) => v * dim[i]),
     lamps,
     beams: [],
-    lit: t.lit || (weather === 'ame' && daytime),
+    lit: t.lit || (gloomy && daytime),
     weather,
   };
+}
+
+// 季節の 木の 色：[影, 明るい ところ]。冬は 葉が ない（null）
+const SEASON_TREE = {
+  haru: { day: ['r', 'q'], yu: ['h', 'r'] },
+  natsu: { day: ['d', 'e'], yu: ['1', 'g'] },
+  aki: { day: ['h', 'i'], yu: ['g', 'h'] },
+  fuyu: null,
+};
+// 舞う もの：春は 花びら、秋は 落ち葉
+const FALLING = { haru: 'q', aki: 'i' };
+
+// 月：満ち欠けは 本当の 月と 同じ。夜の あいだ、窓の 左から 右へ 渡っていく
+function drawMoon(ctx, date) {
+  const phase = moonPhase(date);
+  const h = date.getHours() + date.getMinutes() / 60;
+  const p = (((h - 19 + 24) % 24) / 10);
+  if (p > 1) return;
+  const cx = WIN.x + 8 + p * (WIN.w - 16), cy = WIN.y + 12 - Math.sin(p * Math.PI) * 7;
+  const R = 3.6;
+  const c = Math.cos(phase * Math.PI * 2);
+  for (let j = -4; j <= 4; j++) {
+    for (let i = -4; i <= 4; i++) {
+      const nx = i / R, ny = j / R;
+      if (nx * nx + ny * ny > 1) continue;
+      const hw = Math.sqrt(1 - ny * ny);
+      const lit = phase < 0.5 ? nx > hw * c : nx < -hw * c;
+      px(ctx, lit ? (nx * nx + ny * ny < 0.3 ? '9' : '8') : 'm', Math.round(cx + i), Math.round(cy + j));
+    }
+  }
+}
+
+function drawBareTree(ctx, cx, cy, key, snow) {
+  line(ctx, key, cx, cy + 16, cx, cy - 8);
+  line(ctx, key, cx + 1, cy + 16, cx + 1, cy - 4);
+  const branches = [[-14, -12], [12, -14], [-10, 0], [14, -2], [-17, -4], [6, -18], [-5, -16]];
+  for (const [bx, by] of branches) {
+    line(ctx, key, cx, cy + by / 3, cx + bx, cy + by);
+    if (snow) px(ctx, 'c', cx + bx, cy + by - 1, 2, 1);
+  }
+}
+
+// 雪：ふわふわ ゆれながら ゆっくり 降る
+export function drawSnow(ctx, r, s, count) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(r.x, r.y, r.w, r.h);
+  ctx.clip();
+  for (let k = 0; k < count; k++) {
+    const fall = (hash(k + 30) * r.h + s * 9 * (0.6 + hash(k + 3) * 0.7)) % (r.h + 4);
+    const x = r.x + hash(k) * r.w + Math.sin(s * 0.9 + k) * 2.5;
+    const big = hash(k + 11) < 0.25;
+    px(ctx, '9', Math.round(x), r.y - 2 + Math.floor(fall), big ? 2 : 1, big ? 2 : 1);
+  }
+  ctx.restore();
 }
 
 export function drawClockHands(ctx, x, y, date) {
@@ -205,6 +264,7 @@ function drawOutside(ctx, t, timeKey, s) {
       if (!happening(s, 7, 0.6, 0.5, i)) px(ctx, 'p', x + sx, y + sy); // ときどき またたく
     });
   }
+  if (timeKey === 'yoru' && (t.weather === undefined || t.weather === 'kiri')) drawMoon(ctx, new Date(s * 1000));
 
   ctx.save();
   ctx.beginPath();
@@ -237,6 +297,7 @@ function drawOutside(ctx, t, timeKey, s) {
       const bh = Math.max(3, 4 + Math.floor(rnd() * (layer === 0 ? 7 : 5)) - (bx - x) / 14);
       px(ctx, key, bx, base - bh, bw, y + h - (base - bh));
       px(ctx, layer === 0 ? key : t.roof, bx - 1, base - bh - 2, bw + 2, 2); // 屋根
+      if (t.weather === 'yuki') px(ctx, 'c', bx - 1, base - bh - 3, bw + 2, 1); // 屋根の 雪
       px(ctx, layer === 0 ? key : t.roof, bx + 1, base - bh - 3, bw - 2, 1);
       if (t.windowsLit) {
         for (let k = 0; k < 2; k++) if (rnd() < 0.6) px(ctx, 'k', bx + 2 + Math.floor(rnd() * (bw - 3)), base - bh + 3 + Math.floor(rnd() * 4));
@@ -249,18 +310,35 @@ function drawOutside(ctx, t, timeKey, s) {
   px(ctx, t.townDark, x + 9, y + 22, 6, 2);
   px(ctx, t.townDark, x + 10, y + 21, 4, 1);
 
-  // 通りの 向かいの 木
-  const [dark, lightKey] = t.tree;
+  // 通りの 向かいの 木：季節で 色が 変わる。冬は 葉が 落ちて 枝だけ
+  const date = new Date(s * 1000);
+  const season = seasonOf(date);
+  const leaves = SEASON_TREE[season];
   const cx = x + 72, cy = y + 30;
-  for (let j = -18; j <= 18; j++) {
-    for (let i = -18; i <= 18; i++) {
-      const r = Math.hypot(i, j * 1.15) + Math.sin(i * 1.7 + j) * 1.5;
-      if (r < 17) px(ctx, (i + j < -8 && r < 14) ? lightKey : dark, cx + i, cy + j);
+  if (!leaves) {
+    drawBareTree(ctx, cx, cy, timeKey === 'yoru' ? '0' : timeKey === 'yu' ? '1' : '2', t.weather === 'yuki');
+  } else {
+    const [dark, lightKey] = timeKey === 'yoru' ? t.tree : timeKey === 'yu' ? leaves.yu : leaves.day;
+    for (let j = -18; j <= 18; j++) {
+      for (let i = -18; i <= 18; i++) {
+        const r = Math.hypot(i, j * 1.15) + Math.sin(i * 1.7 + j) * 1.5;
+        if (r < 17) px(ctx, (i + j < -8 && r < 14) ? lightKey : dark, cx + i, cy + j);
+      }
+    }
+    px(ctx, timeKey === 'yoru' ? '0' : '2', cx - 1, cy + 14, 3, y + h - (cy + 14));
+    // 花びらや 落ち葉が、ときどき 舞う（晴れた 昼間）
+    const fallKey = FALLING[season];
+    if (fallKey && t.weather === undefined && timeKey !== 'yoru') {
+      for (let k = 0; k < 5; k++) {
+        const fall = (hash(k + 70) * h + s * (3 + k)) % (h + 10);
+        const fx = cx - 20 + hash(k + 71) * 40 - fall * 0.6 + Math.sin(s + k * 2) * 3;
+        if (fx > x && fx < x + w) px(ctx, fallKey, Math.round(fx), y + Math.floor(fall) - 5);
+      }
     }
   }
-  px(ctx, dark, cx - 1, cy + 14, 3, y + h - (cy + 14));
 
   if (t.weather === 'kiri') drawFog(ctx, WIN, t.sky[0], s, 0.55);
+  if (t.weather === 'yuki') drawSnow(ctx, WIN, s, 36);
   if (t.weather === 'ame') {
     drawRain(ctx, WIN, s, timeKey === 'yoru' ? 'n' : 'p', 40);
     // ガラスを つたう しずく
@@ -863,6 +941,8 @@ export class Shop {
     drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
     drawOkuno(ctx, date, s, bow);
     drawYukashi(ctx, s, date, stay, weather);
+    // 冬は、窓辺の まんなかの サボテンに 花が 咲く
+    if (seasonOf(date) === 'fuyu') { px(ctx, 'h', 37, 73, 2, 2); px(ctx, 'q', 37, 73); }
     if (sweet) drawSweet(ctx, sweet, sweetLeft);
     if (drink) drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y, { swap: DRINKS[drink].swap });
 

@@ -5,9 +5,10 @@ import { weatherOf } from './weather.js';
 const DAY = 24 * 60 * 60 * 1000;
 
 export function greeting(guest, date, weather = 'hare') {
-  if (guest.visits <= 1) return weather === 'ame' ? 'いらっしゃいませ。雨の中、ようこそ。' : 'いらっしゃいませ。';
+  if (guest.visits <= 1) return weather === 'ame' ? 'いらっしゃいませ。雨の中、ようこそ。' : weather === 'yuki' ? 'いらっしゃいませ。雪の中、ようこそ。' : 'いらっしゃいませ。';
   if (guest.previous && date - guest.previous > 30 * DAY) return 'いらっしゃいませ。……おや、おひさしぶりですね。';
   if (weather === 'ame') return 'いらっしゃいませ。降られませんでしたか。';
+  if (weather === 'yuki') return 'いらっしゃいませ。冷えましたでしょう。';
   if (guest.visits >= 5) return 'いらっしゃいませ。いつもの席、空いていますよ。';
   return 'いらっしゃいませ。また来てくださったんですね。';
 }
@@ -24,6 +25,7 @@ export function orderLine(guest, drink, weather = 'hare') {
   if (drink === 'tsukimi') return '夜ですから、月見ブレンドにしましょうか。';
   if (drink === 'milk') return '霧の朝ですから、ミルクコーヒーにしましょう。';
   if (weather === 'ame') return '雨の日は、少し濃いめに淹れておきました。';
+  if (weather === 'yuki') return '雪の日は、少し熱めにしておきました。';
   if (guest.visits >= 3) return 'いつもので、よろしいですね。';
   if (guest.visits <= 1) return 'はじめてでしたら、ゆかしブレンドを。……実はもう、淹れてあるんです。';
   return '今日も、ゆかしブレンドにしましょう。';

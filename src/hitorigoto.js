@@ -1,8 +1,8 @@
 // おくのさんの ひとりごと。data/hitorigoto.txt の 1行が ひとつの ひとりごと。
 // 空の 行と「#」で はじまる 行は 読みとばす。
-// 行の 頭に [雨] [霧] [朝] [昼] [夕] [夜] と 書くと、その 天気・時間帯の ときだけ 言う。
+// 行の 頭に [雨] [霧] [雪] [朝] [昼] [夕] [夜] [春] [夏] [秋] [冬] と 書くと、その 天気・時間帯・季節の ときだけ 言う。
 
-const TAGS = { 雨: 'ame', 霧: 'kiri', 朝: 'asa', 昼: 'hiru', 夕: 'yu', 夜: 'yoru' };
+const TAGS = { 雨: 'ame', 霧: 'kiri', 雪: 'yuki', 朝: 'asa', 昼: 'hiru', 夕: 'yu', 夜: 'yoru', 春: 'haru', 夏: 'natsu', 秋: 'aki', 冬: 'fuyu' };
 
 let lines = null;
 let last = '';
@@ -20,9 +20,9 @@ export async function loadHitorigoto() {
 
 // いまの 天気と 時間帯に 合う ものから 選ぶ。合う 札つきの 行が あれば、少し 多めに 選ぶ。
 // さっきと 同じ ものは 続けて 出さない。
-export async function nextHitorigoto({ weather = 'hare', timeKey = '' } = {}) {
+export async function nextHitorigoto({ weather = 'hare', timeKey = '', season = '' } = {}) {
   const all = await loadHitorigoto();
-  const fits = l => l.when === null || l.when === weather || l.when === timeKey;
+  const fits = l => l.when === null || l.when === weather || l.when === timeKey || l.when === season;
   const tagged = all.filter(l => l.when && fits(l) && l.text !== last);
   const pool = tagged.length && Math.random() < 0.4 ? tagged : all.filter(l => fits(l) && l.text !== last);
   if (pool.length === 0) return '……';

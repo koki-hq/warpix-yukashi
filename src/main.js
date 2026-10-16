@@ -11,6 +11,8 @@ import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
 import { greeting, chooseDrink, chooseSweet, SWEET_LINES, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
 import { drawFavicon } from './favicon.js';
 import { weatherOf } from './weather.js';
+import { seasonOf, sekkiOf } from './koyomi.js';
+import { WEATHERS } from './weather.js';
 
 const SCALE = 4; // 画面は 4倍の 細かさで 描く（寄るときに ドットが ゆがまないように）
 const view = document.getElementById('view');
@@ -171,12 +173,13 @@ async function checkout() {
   receiptDate = new Date();
   await drawReceipt(receiptCanvas, {
     date: receiptDate,
+    koyomi: `${sekkiOf(receiptDate)}のころ・${WEATHERS[weather]}`,
     visit: state.guest.visits,
     items: [[DRINKS[state.drink].name, state.cups], ...(state.sweet ? [[SWEETS[state.sweet].name, 1]] : [])],
     stay: stayed(),
     catVisits: catVisits(stayed()),
     hitorigotoCount: state.hitorigotoCount,
-    words: state.lastWords ?? await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()) }),
+    words: state.lastWords ?? await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()), season: seasonOf(new Date()) }),
   });
   receiptEl.hidden = false;
   receiptEl.querySelector('.r-stay').focus();
@@ -380,7 +383,7 @@ view.addEventListener('click', async ev => {
   const t = target(scenePoint(ev));
   if (t === 'door') openDoor();
   else if (t === 'okuno') {
-    state.lastWords = await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()) });
+    state.lastWords = await nextHitorigoto({ weather, timeKey: timeKeyOf(new Date()), season: seasonOf(new Date()) });
     state.hitorigotoCount++;
     say(state.lastWords);
   }
