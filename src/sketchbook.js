@@ -7,7 +7,7 @@ import {
   Shop, TIMES, timeKeyOf, okunoActivity, ACTIVITIES, yukashiPlace, yukashiVisit, PLACES, SCENE_W, SCENE_H, SPOTS,
 } from './scene.js';
 import { nextHitorigoto } from './hitorigoto.js';
-import { Jukebox } from './music.js';
+import { Jukebox, SONGS, SONG_ORDER, GENRES } from './music.js';
 import { VERSION } from './version.js';
 
 const params = new URLSearchParams(location.search);
@@ -53,25 +53,96 @@ const buttons = ['now', ...Object.keys(TIMES)].map(key => {
 });
 
 // ---- ジュークボックス ----
-// 音は クリックした あとに だけ 鳴らせる（ブラウザの 決まり）。曲は 時間帯で 変わる
+// 音は クリックした あとに だけ 鳴らせる（ブラウザの 決まり）。
+// 上の ボタンは「おまかせ」（時間帯で 変わる）、試聴室では 1曲ずつ
 let jukebox = null;
+let mode = 'omakase';
 const musicButton = document.getElementById('music');
 const songLabel = document.getElementById('song');
-async function toggleMusic() {
+async function playMode(m) {
   jukebox ??= new Jukebox();
-  if (jukebox.playing) jukebox.stop();
-  else await jukebox.start(currentKey());
-  musicButton.setAttribute('aria-pressed', String(jukebox.playing));
+  if (jukebox.playing && mode === m) {
+    jukebox.stop();
+  } else {
+    mode = m;
+    await jukebox.start();
+    jukebox.follow(mode, currentKey(), 'hare');
+  }
+  musicButton.setAttribute('aria-pressed', String(jukebox.playing && mode === 'omakase'));
+  refreshListen();
 }
-musicButton.addEventListener('click', toggleMusic);
+musicButton.addEventListener('click', () => playMode('omakase'));
 
 const currentKey = () => (chosen === 'now' ? timeKeyOf(now()) : chosen);
+
+// ---- 試聴室 ----
+const LISTEN_KEY = 'kissa-yukashi.listening';
+const listenNotes = (() => { try { return JSON.parse(localStorage.getItem(LISTEN_KEY) ?? '{}'); } catch { return {}; } })();
+const saveListen = () => { try { localStorage.setItem(LISTEN_KEY, JSON.stringify(listenNotes)); } catch { /* 覚えられなくても 聴ける */ } };
+const FEELINGS = ['いい', 'ふつう', '気になる'];
+const listenEl = document.getElementById('listen');
+const playButtons = {};
+for (const [genre, g] of Object.entries(GENRES)) {
+  const head = document.createElement('div');
+  head.className = 'genre';
+  head.textContent = `${g.label}：${g.note}`;
+  listenEl.append(head);
+  for (const id of SONG_ORDER.filter(i => SONGS[i].genre === genre)) {
+    const s = SONGS[id];
+    const row = document.createElement('div');
+    row.className = 'row';
+    const play = document.createElement('button');
+    play.addEventListener('click', () => playMode(id));
+    playButtons[id] = play;
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.innerHTML = `<span class="code">${s.code}</span>${s.title}<small>${s.note}・${s.bpm} BPM</small>`;
+    row.append(play, name);
+    for (const f of FEELINGS) {
+      const b = document.createElement('button');
+      b.textContent = f;
+      b.setAttribute('aria-pressed', String(listenNotes[id] === f));
+      b.addEventListener('click', () => {
+        listenNotes[id] = listenNotes[id] === f ? undefined : f;
+        saveListen();
+        for (const x of row.querySelectorAll('button:not(:first-child)')) x.setAttribute('aria-pressed', String(listenNotes[id] === x.textContent));
+      });
+      row.append(b);
+    }
+    listenEl.append(row);
+  }
+}
+const memo = document.getElementById('listen-memo');
+memo.value = listenNotes.memo ?? '';
+memo.addEventListener('input', () => { listenNotes.memo = memo.value; saveListen(); });
+function refreshListen() {
+  for (const [id, b] of Object.entries(playButtons)) {
+    const on = !!jukebox?.playing && mode === id;
+    b.textContent = on ? '■' : '▶';
+    b.setAttribute('aria-pressed', String(on));
+  }
+}
+refreshListen();
+document.getElementById('listen-copy').addEventListener('click', async () => {
+  const lines = [`喫茶ゆかし 試聴室の感想（版 ${VERSION}）`];
+  for (const id of SONG_ORDER) lines.push(`${SONGS[id].code} ${SONGS[id].title}（${GENRES[SONGS[id].genre].label}）：${listenNotes[id] ?? '未'}`);
+  if (listenNotes.memo) lines.push('', `メモ：${listenNotes.memo}`);
+  const text = lines.join('\n');
+  const done = document.getElementById('listen-copied');
+  try {
+    await navigator.clipboard.writeText(text);
+    done.textContent = 'コピーしました。';
+  } catch {
+    memo.value = text; // コピーできない ときは、メモ欄に 出して 手で コピーしてもらう
+    done.textContent = 'コピーできなかったので、メモ欄に出しました。';
+  }
+});
 
 function draw() {
   const d = now();
   const key = currentKey();
   const music = !!jukebox?.playing;
-  if (music) jukebox.setSong(key);
+  if (music) jukebox.follow(mode, key, 'hare');
   songLabel.textContent = music ? `いま流れている曲：「${jukebox.title}」` : '';
   shop.render(d, key, { music, stay: stay() });
   for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === chosen));
@@ -88,7 +159,7 @@ sceneEl.addEventListener('click', async e => {
   const y = ((e.clientY - r.top) / r.height) * SCENE_H;
   if (inside(SPOTS.okuno, x, y)) bubble.textContent = await nextHitorigoto();
   else if (inside(SPOTS.notebook, x, y, 1)) bubble.textContent = '「スケッチ帳」と書かれた帳面。……いま開いているのが、これだ。';
-  else if (inside(SPOTS.jukebox, x, y, 0)) await toggleMusic();
+  else if (inside(SPOTS.jukebox, x, y, 0)) await playMode(mode);
 });
 
 // ---- 時間帯の 光 ----

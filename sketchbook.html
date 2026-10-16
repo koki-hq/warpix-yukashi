@@ -33,6 +33,15 @@
   .cast { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
   .cast figure { display: flex; flex-direction: column; align-items: center; }
   footer { margin-top: 48px; color: var(--dim); font-size: 13px; }
+  .listen { display: grid; gap: 6px; }
+  .listen .genre { color: var(--dim); margin-top: 10px; }
+  .listen .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--paper); padding: 6px 10px; }
+  .listen .row .name { flex: 1 1 220px; }
+  .listen .row .name small { display: block; color: var(--dim); font-size: 12px; }
+  .listen button { font: inherit; color: var(--ink); background: var(--bg); border: 2px solid var(--line); padding: 1px 10px; cursor: pointer; }
+  .listen button[aria-pressed="true"] { border-color: #f6cf72; color: #f6cf72; }
+  .listen .code { color: #e89a4a; margin-right: .5em; }
+  textarea { width: 100%; font: inherit; background: var(--paper); color: var(--ink); border: 2px solid var(--line); padding: 8px; }
   a { color: #f6cf72; }
 </style>
 </head>
@@ -48,6 +57,12 @@
   <p class="note" id="status"></p>
   <canvas id="scene"></canvas>
   <div class="bubble" id="bubble">……</div>
+
+  <h2>試聴室</h2>
+  <p class="note">ジュークボックスの全曲。▶で聴いて、感想を選んでください。いちばん下のボタンで、感想をまとめてコピーできます（Claude に貼りつけてもらえれば、それをもとに直します）。</p>
+  <div class="listen" id="listen"></div>
+  <p><textarea id="listen-memo" rows="3" placeholder="ほかに気づいたこと（なくてもいいです）"></textarea></p>
+  <div class="tabs"><button id="listen-copy">感想をまとめてコピー</button><span class="note" id="listen-copied"></span></div>
 
   <h2>時間帯の光</h2>
   <div class="thumbs" id="thumbs"></div>

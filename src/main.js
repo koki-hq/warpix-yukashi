@@ -5,7 +5,8 @@ import { Shop, SPOTS, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE
 import { drawFacade, DOOR } from './facade.js';
 import { Jukebox } from './music.js';
 import { nextHitorigoto } from './hitorigoto.js';
-import { checkIn } from './guest.js';
+import { checkIn, loadPrefs, savePrefs } from './guest.js';
+import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
 import { greeting, chooseDrink, orderLine, SERVED, WELCOME_BACK, PURR } from './lines.js';
 import { drawFavicon } from './favicon.js';
 
@@ -64,18 +65,39 @@ function say(text, spot = 'okuno') {
 
 // ---- 音楽 ----
 
+const prefs = loadPrefs();
+const style = document.createElement('style');
+style.textContent = JUKEBOX_PANEL_CSS;
+document.head.append(style);
+
+let weather = 'hare';
+const panel = createJukeboxPanel(document.getElementById('jukebox'), {
+  prefs,
+  onChange: applyPrefs,
+  getNow: () => ({ id: jukebox?.song?.id, playing: !!jukebox?.playing }),
+});
+
+async function applyPrefs() {
+  savePrefs(prefs);
+  if (!jukebox) return;
+  jukebox.setVolume(prefs.volume);
+  if (prefs.playing && !jukebox.playing) await jukebox.start();
+  if (!prefs.playing && jukebox.playing) jukebox.stop();
+  jukebox.follow(prefs.mode, timeKeyOf(new Date()), weather);
+  updateSong();
+  panel.refresh();
+}
+
+let shownSong = '';
 function updateSong() {
   if (!jukebox) return;
-  songEl.textContent = jukebox.playing ? `♪ ${jukebox.title}` : '♪ ジュークボックスは休憩中';
-  songEl.setAttribute('aria-pressed', String(jukebox.playing));
+  const text = jukebox.playing ? `♪ ${jukebox.title}` : '♪ ジュークボックスは休憩中';
+  if (text === shownSong) return;
+  shownSong = text;
+  songEl.textContent = text;
+  panel.refresh();
 }
-async function toggleMusic() {
-  if (!jukebox) return;
-  if (jukebox.playing) jukebox.stop();
-  else await jukebox.start(timeKeyOf(new Date()));
-  updateSong();
-}
-songEl.addEventListener('click', toggleMusic);
+songEl.addEventListener('click', () => panel.toggle());
 
 // ---- 入店 ----
 
@@ -87,7 +109,12 @@ async function openDoor() {
   go('opening');
   hint.classList.add('gone');
   setTimeout(() => say(greeting(state.guest, new Date()), 'door'), 300);
-  setTimeout(async () => { await jukebox.start(timeKeyOf(new Date())); updateSong(); }, 1400);
+  jukebox.volume = prefs.volume;
+  setTimeout(async () => {
+    if (prefs.playing) await jukebox.start();
+    jukebox.follow(prefs.mode, timeKeyOf(new Date()), weather);
+    updateSong();
+  }, 1400);
 }
 
 function sitDown() {
@@ -165,7 +192,8 @@ function draw(now) {
   const key = timeKeyOf(date);
   const e = (now - state.phaseAt) / 1000;
   const music = !!jukebox?.playing;
-  if (music) jukebox.setSong(key);
+  if (music) jukebox.follow(prefs.mode, key, weather);
+  updateSong();
 
   if (state.phase === 'door' || state.phase === 'opening') {
     const open = state.phase === 'opening' ? Math.min(1, e / 0.8) : 0;
@@ -255,7 +283,7 @@ view.addEventListener('click', async ev => {
   else if (t === 'okuno') say(await nextHitorigoto());
   else if (t === 'cat') say(PURR, 'cat');
   else if (t === 'notebook') window.open('./sketchbook.html', '_blank', 'noopener');
-  else if (t === 'jukebox') toggleMusic();
+  else if (t === 'jukebox') panel.toggle();
 });
 view.addEventListener('keydown', ev => {
   if ((ev.key === 'Enter' || ev.key === ' ') && state.phase === 'door') { ev.preventDefault(); openDoor(); }

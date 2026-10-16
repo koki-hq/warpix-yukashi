@@ -19,6 +19,24 @@ export function saveGuest(guest) {
   }
 }
 
+// ジュークボックスの 好み：選曲の しかた、音量、鳴らすか どうか
+const PREFS_KEY = 'kissa-yukashi.prefs';
+export function loadPrefs() {
+  const base = { mode: 'omakase', volume: 0.6, playing: true };
+  try {
+    return { ...base, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
+  } catch {
+    return base;
+  }
+}
+export function savePrefs(prefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // おぼえられなくても、曲は 鳴る
+  }
+}
+
 // 入店した ことを 記録して、前回の 来店日を 返す
 export function checkIn(now = Date.now()) {
   const guest = loadGuest();
