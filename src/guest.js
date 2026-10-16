@@ -37,6 +37,16 @@ export function savePrefs(prefs) {
   }
 }
 
+// いた 時間と 杯数を、これまでの 合計に 足す（同じ 滞在を 二度 足さないように、最後の 記録を 覚えておく）
+let recorded = { stay: 0, cups: 0 };
+export function recordStay(stay, cups) {
+  const guest = loadGuest();
+  guest.totalStay = (guest.totalStay ?? 0) + Math.max(0, stay - recorded.stay);
+  guest.totalCups = (guest.totalCups ?? 0) + Math.max(0, cups - recorded.cups);
+  saveGuest(guest);
+  recorded = { stay, cups };
+}
+
 // 入店した ことを 記録して、前回の 来店日を 返す
 export function checkIn(now = Date.now()) {
   const guest = loadGuest();
@@ -44,5 +54,6 @@ export function checkIn(now = Date.now()) {
   guest.visits += 1;
   guest.lastVisit = now;
   saveGuest(guest);
+  recorded = { stay: 0, cups: 0 };
   return { ...guest, previous };
 }

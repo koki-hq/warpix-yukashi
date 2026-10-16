@@ -38,5 +38,12 @@ export function orderLine(guest, drink) {
 }
 
 export const SERVED = 'どうぞ、ごゆっくり。';
+export const CHECKOUT = 'ありがとうございました。';
+export const STAY_MORE = 'ええ、どうぞ。いくらでも。';
+
+export function farewell(cups) {
+  if (cups >= 3) return 'ゆっくりしていただけて、よかったです。またどうぞ。';
+  return 'またどうぞ。';
+}
 export const WELCOME_BACK = 'おかえりなさい。';
 export const PURR = '（ゴロゴロ……）';

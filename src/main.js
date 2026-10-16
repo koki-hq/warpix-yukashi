@@ -1,13 +1,14 @@
 // 喫茶ゆかし。ドアを 開けて、席に 着いて、あとは のんびり。
 //
 // 流れ：door（店の 表）→ opening（ドアが 開く）→ walk（席まで 歩く）→ sit（座る）→ stay（過ごす）
-import { Shop, SPOTS, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
+import { Shop, SPOTS, DRINKS, VISIT, timeKeyOf, yukashiPlace, yukashiVisit, SCENE_W as W, SCENE_H as H } from './scene.js';
+import { drawReceipt, saveReceipt } from './receipt.js';
 import { drawFacade, DOOR } from './facade.js';
 import { Jukebox } from './music.js';
 import { nextHitorigoto } from './hitorigoto.js';
-import { checkIn, loadPrefs, savePrefs } from './guest.js';
+import { checkIn, recordStay, loadPrefs, savePrefs } from './guest.js';
 import { createJukeboxPanel, JUKEBOX_PANEL_CSS } from './jukebox-panel.js';
-import { greeting, chooseDrink, orderLine, SERVED, WELCOME_BACK, PURR } from './lines.js';
+import { greeting, chooseDrink, orderLine, farewell, SERVED, WELCOME_BACK, PURR, CHECKOUT, STAY_MORE } from './lines.js';
 import { drawFavicon } from './favicon.js';
 
 const SCALE = 4; // 画面は 4倍の 細かさで 描く（寄るときに ドットが ゆがまないように）
@@ -40,6 +41,9 @@ const state = {
   bowUntil: 0,
   hiddenAt: 0,
   script: [], // [時刻, 動作] の 予定
+  cups: 0,
+  hitorigotoCount: 0,
+  lastWords: null,
 };
 let jukebox = null;
 
@@ -103,7 +107,7 @@ songEl.addEventListener('click', () => panel.toggle());
 
 async function openDoor() {
   if (state.phase !== 'door') return;
-  jukebox = new Jukebox();
+  jukebox ??= new Jukebox();
   jukebox.bell();
   state.guest = checkIn();
   go('opening');
@@ -131,10 +135,65 @@ function sitDown() {
 function serve() {
   state.servedAt = Date.now();
   state.served = true;
+  state.cups = 1;
   jukebox?.clink();
   say(SERVED);
   updateCoffee();
+  checkoutButton.hidden = false;
 }
+
+// ---- お会計 ----
+
+const checkoutButton = document.getElementById('checkout');
+const receiptEl = document.getElementById('receipt');
+const receiptCanvas = receiptEl.querySelector('canvas');
+let receiptDate = new Date();
+
+const stayed = () => (state.satAt ? (Date.now() - state.satAt) / 1000 : 0);
+const catVisits = stay => (stay < VISIT.after ? 0 : 1 + Math.floor((stay - VISIT.after) / VISIT.every));
+
+async function checkout() {
+  if (state.phase !== 'stay') return;
+  panel.close();
+  say(CHECKOUT);
+  receiptDate = new Date();
+  await drawReceipt(receiptCanvas, {
+    date: receiptDate,
+    visit: state.guest.visits,
+    items: [[DRINKS[state.drink].name, state.cups]],
+    stay: stayed(),
+    catVisits: catVisits(stayed()),
+    hitorigotoCount: state.hitorigotoCount,
+    words: state.lastWords ?? await nextHitorigoto(),
+  });
+  receiptEl.hidden = false;
+  receiptEl.querySelector('.r-stay').focus();
+}
+
+function leave() {
+  receiptEl.hidden = true;
+  recordStay(stayed(), state.cups);
+  jukebox?.stop(); // 好みの「止めた」は 覚えない。帰るので 止めるだけ
+  updateSong();
+  checkoutButton.hidden = true;
+  go('leaving');
+}
+
+// 店を 出たら、また はじめから
+function resetVisit() {
+  Object.assign(state, { drink: null, served: false, servedAt: 0, satAt: 0, script: [], cups: 0, hitorigotoCount: 0, lastWords: null });
+  hint.classList.remove('gone');
+  drawFavicon(1, 'yukashi');
+  go('door');
+}
+
+checkoutButton.addEventListener('click', checkout);
+receiptEl.querySelector('.r-save').addEventListener('click', () => saveReceipt(receiptCanvas, receiptDate));
+receiptEl.querySelector('.r-stay').addEventListener('click', () => { receiptEl.hidden = true; say(STAY_MORE); });
+receiptEl.querySelector('.r-leave').addEventListener('click', leave);
+
+// タブを 閉じて 帰った ときも、いた 時間は 覚えておく
+addEventListener('pagehide', () => { if (state.phase === 'stay') recordStay(stayed(), state.cups); });
 
 // ---- コーヒー：冷めて、減って、おかわり ----
 
@@ -144,6 +203,7 @@ function coffee() {
   if (elapsed >= COFFEE.refillAfter) {
     // 黙って おかわりを 置いていく
     state.servedAt = Date.now();
+    state.cups++;
     elapsed = 0;
     if (!document.hidden) jukebox?.clink();
   }
@@ -195,6 +255,21 @@ function draw(now) {
   if (music) jukebox.follow(prefs.mode, key, weather);
   updateSong();
 
+  // 店を 出る：暗転して、表から ドアが 閉まるのを 見る
+  if (state.phase === 'leaving' && e >= 0.8) {
+    const open = e < 1.8 ? 1 : Math.max(0, 1 - (e - 1.8) / 0.6);
+    drawFacade(lctx, key, { open, cat: yukashiPlace(date) === 'mado', s: date.getTime() / 1000 });
+    ctx.drawImage(layer, 0, 0, view.width, view.height);
+    fade(1 - (e - 0.8) / 0.6);
+    if (!state.closedBell && e > 2.2) { state.closedBell = true; jukebox?.bell(); }
+    if (e > 2.8) {
+      state.closedBell = false;
+      say(farewell(state.cups), 'door');
+      resetVisit();
+    }
+    return;
+  }
+
   if (state.phase === 'door' || state.phase === 'opening') {
     const open = state.phase === 'opening' ? Math.min(1, e / 0.8) : 0;
     drawFacade(lctx, key, { open, cat: yukashiPlace(date) === 'mado', s: date.getTime() / 1000 });
@@ -242,6 +317,11 @@ function draw(now) {
     if (p >= 1) sitDown();
     return;
   }
+  if (state.phase === 'leaving') {
+    ctx.drawImage(layer, 0, 0, view.width, view.height);
+    fade(e / 0.8);
+    return;
+  }
 
   ctx.drawImage(layer, 0, 0, view.width, view.height);
   while (state.script.length && state.script[0][0] <= now) state.script.shift()[1]();
@@ -280,7 +360,11 @@ view.addEventListener('mousemove', ev => { view.style.cursor = target(scenePoint
 view.addEventListener('click', async ev => {
   const t = target(scenePoint(ev));
   if (t === 'door') openDoor();
-  else if (t === 'okuno') say(await nextHitorigoto());
+  else if (t === 'okuno') {
+    state.lastWords = await nextHitorigoto();
+    state.hitorigotoCount++;
+    say(state.lastWords);
+  }
   else if (t === 'cat') say(PURR, 'cat');
   else if (t === 'notebook') window.open('./sketchbook.html', '_blank', 'noopener');
   else if (t === 'jukebox') panel.toggle();

@@ -28,7 +28,16 @@
   #hint.gone { opacity: 0; }
   #song { font: inherit; color: var(--dim); background: none; border: 0; padding: 0; cursor: pointer; }
   #song:empty { display: none; }
-  #song:hover { color: var(--ink); }
+  #song:hover, #checkout:hover { color: var(--ink); }
+  #checkout { font: inherit; color: var(--dim); background: none; border: 2px solid #3e2a24; padding: 0 10px; cursor: pointer; margin-right: auto; }
+  #checkout[hidden] { display: none; }
+  #hint.gone { display: none; }
+  .receipt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 16px; background: rgba(13, 9, 9, .55); z-index: 6; padding: 2%; }
+  .receipt[hidden] { display: none; }
+  .receipt canvas { max-height: 100%; width: auto; max-width: 52%; image-rendering: auto; box-shadow: 4px 4px 0 rgba(0, 0, 0, .4); object-fit: contain; }
+  .r-buttons { display: flex; flex-direction: column; gap: 8px; }
+  .r-buttons button { font: inherit; font-size: clamp(11px, 1.4vw, 15px); color: var(--ink); background: #2b1d1c; border: 2px solid #57392c; padding: 6px 14px; cursor: pointer; }
+  .r-buttons button:hover, .r-buttons button:focus-visible { border-color: #f6cf72; }
   noscript { color: var(--dim); }
 </style>
 </head>
@@ -37,8 +46,17 @@
     <canvas id="view" tabindex="0" role="img" aria-label="喫茶ゆかし。ドアをクリックすると入店します。"></canvas>
     <div id="bubble" role="status" aria-live="polite"></div>
     <div id="jukebox" class="jb" hidden role="dialog" aria-label="ジュークボックス"></div>
+    <div id="receipt" class="receipt" hidden role="dialog" aria-label="レシート">
+      <canvas></canvas>
+      <div class="r-buttons">
+        <button class="r-save">レシートを保存</button>
+        <button class="r-stay">もう少しいる</button>
+        <button class="r-leave">店を出る</button>
+      </div>
+    </div>
     <div class="below">
       <span id="hint">ドアをクリックして、どうぞ。</span>
+      <button id="checkout" hidden>お会計</button>
       <button id="song" aria-pressed="false"></button>
     </div>
   </div>
