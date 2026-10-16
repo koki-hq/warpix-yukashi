@@ -1,7 +1,15 @@
 // 店の 景色。角の テーブル席から 店全体を 見わたした 引きの 絵（320×180）。
 // 配置は docs/shop.md を 見てね。
-import { drawSprite, px, line, light, seeded } from './pixel.js';
-import { cup, clock, okuno, yukashi, monsteraLeaf } from './sprites.js';
+//
+// 1コマの 描き方：
+//   1. 窓の 外（雲や 鳥が 動く）
+//   2. 店の 中（動かない 部分。時間帯ごとに 一度だけ 描いて とっておく）
+//   3. 住人と 時計の 針（動く）
+//   4. 光を あてる（明るさの 表も 時間帯ごとに とっておく）
+//   5. 灯り そのものと 湯気（光の 影響を 受けない）
+import { drawSprite, px, line, seeded, makeLightMap, applyLightMap } from './pixel.js';
+import { COLOR } from './palette.js';
+import { cup, clock, okuno, okunoLook, okunoDown, yukashi, yukashiEar, monsteraLeaf } from './sprites.js';
 
 export const SCENE_W = 320;
 export const SCENE_H = 180;
@@ -22,6 +30,8 @@ export const SPOTS = {
   yukashi: { x: 62, y: WIN.y + WIN.h + 3 - 11, w: yukashi.w, h: yukashi.h },
   cup: { x: 168, y: 150, w: cup.w, h: cup.h },
   clock: { x: 120, y: 26, w: 16, h: 16 },
+  // 本棚に まぎれた、リボンの はみ出た 帳面。開くと スケッチ帳
+  notebook: { x: SHELF.x + 26, y: SHELF.y + 2 + 17 * 2 - 13, w: 5, h: 17 },
 };
 
 const TOWN_BEAM = [
@@ -147,11 +157,44 @@ function windowPanes() {
   return panes;
 }
 
-function drawOutside(ctx, t) {
+// 雲：ゆっくり 右へ 流れる。本当の 時刻から 位置が 決まるので、いつ 開いても 続きから
+const CLOUDS = [
+  { y: 4, speed: 1 / 9, offset: 10, parts: [[3, 0, 8, 1], [0, 1, 16, 2], [5, 3, 12, 1]] },
+  { y: 12, speed: 1 / 14, offset: 70, parts: [[2, 0, 6, 1], [0, 1, 11, 1], [4, 2, 9, 1]] },
+  { y: 2, speed: 1 / 20, offset: 120, parts: [[4, 0, 10, 1], [0, 1, 20, 2], [3, 3, 8, 1]] },
+];
+const CLOUD_COLOR = { asa: ['c', '9'], hiru: ['c', '9'], yu: ['j', 'k'], yoru: ['m', 'm'] };
+
+function drawOutside(ctx, t, timeKey, s) {
   const { x, y, w, h } = WIN;
   const band = Math.ceil(h / 3);
   t.sky.forEach((key, i) => px(ctx, key, x, y + i * band, w, Math.min(band, h - i * band)));
-  if (t.stars) [[6, 4], [22, 9], [40, 3], [57, 7], [75, 2], [83, 11], [31, 15]].forEach(([sx, sy]) => px(ctx, 'p', x + sx, y + sy));
+  if (t.stars) {
+    [[6, 4], [22, 9], [40, 3], [57, 7], [75, 2], [83, 11], [31, 15]].forEach(([sx, sy], i) => {
+      if (!happening(s, 7, 0.6, 0.5, i)) px(ctx, 'p', x + sx, y + sy); // ときどき またたく
+    });
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  const [shade, lit] = CLOUD_COLOR[timeKey];
+  for (const c of CLOUDS) {
+    const span = w + 40;
+    const cx = x - 20 + (((c.offset + s * c.speed) % span) + span) % span;
+    c.parts.forEach(([dx, dy, cw, ch], i) => px(ctx, i === c.parts.length - 1 ? shade : lit, Math.floor(cx + dx), y + c.y + dy, cw, ch));
+  }
+  // 鳥：昼の あいだ、ときどき 横切る
+  if (timeKey === 'asa' || timeKey === 'hiru') {
+    const p = happening(s, 80, 7, 0.7, 3);
+    if (p !== false) {
+      const bx = Math.floor(x - 4 + p * (w + 8)), by = Math.floor(y + 14 + Math.sin(p * 9) * 3);
+      const up = Math.floor(s * 6) % 2 === 0;
+      px(ctx, '1', bx, by + (up ? 0 : 1)); px(ctx, '1', bx + 1, by + 1); px(ctx, '1', bx + 2, by + (up ? 0 : 1));
+    }
+  }
+  ctx.restore();
 
   // 坂の 町：下へ 行くほど 手前の 家
   const rnd = seeded(21);
@@ -187,8 +230,8 @@ function drawOutside(ctx, t) {
   px(ctx, dark, cx - 1, cy + 14, 3, y + h - (cy + 14));
 }
 
-function drawWindow(ctx, t, mask) {
-  drawOutside(ctx, t);
+function drawWindow(ctx) {
+  for (const p of windowPanes()) ctx.clearRect(p.x, p.y, p.w, p.h); // 外が 透けて 見えるように
   const { x, y, w, h } = WIN;
   // わく
   px(ctx, '1', x - 3, y - 3, w + 6, 3);
@@ -200,7 +243,6 @@ function drawWindow(ctx, t, mask) {
   px(ctx, '1', Math.round(x + colW), y, 2, h);
   px(ctx, '1', Math.round(x + 2 * colW + 2), y, 2, h);
   px(ctx, '2', x - 3, y - 3, w + 6, 1);
-  for (const p of windowPanes()) markRect(mask, p);
 
   // 窓台
   const sy = y + h + 2;
@@ -229,7 +271,6 @@ function drawWindowsill(ctx) {
     px(ctx, 'h', cx, sy - 3, 5, 3);
     px(ctx, 'i', cx, sy - 3, 5, 1);
   });
-  drawSprite(ctx, yukashi, SPOTS.yukashi.x, SPOTS.yukashi.y);
 }
 
 // ---- 窓ぎわの テーブル ----
@@ -268,9 +309,8 @@ function drawWindowTable(ctx) {
 
 // ---- 中央の 壁 ----
 
-function drawWallThings(ctx, date) {
+function drawWallThings(ctx) {
   drawSprite(ctx, clock, SPOTS.clock.x, SPOTS.clock.y);
-  drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
 
   // おくのさんの 空想地図
   const mx = 112, my = 50, mw = 30, mh = 24;
@@ -322,9 +362,7 @@ function drawBackBar(ctx) {
   }
 }
 
-function drawCounter(ctx, t) {
-  drawSprite(ctx, okuno, SPOTS.okuno.x, SPOTS.okuno.y);
-
+function drawCounter(ctx) {
   const { x, y, w } = COUNTER;
   const bottom = 122;
   px(ctx, '7', x - 2, y, w + 4, 1);
@@ -350,12 +388,13 @@ function drawCounter(ctx, t) {
   px(ctx, '5', jx, jy + 6, jw, 122 - jy - 6);
   px(ctx, '4', jx + jw - 3, jy + 6, 3, 122 - jy - 6);
   px(ctx, '1', jx + 3, jy + 8, jw - 6, 10);
-  for (let i = 0; i < 4; i++) px(ctx, t.lit ? 'k' : '7', jx + 4 + i * 3, jy + 10, 2, 6);
-  px(ctx, t.lit ? 'j' : '6', jx + 2, jy + 20, jw - 4, 1);
+  for (let i = 0; i < 4; i++) px(ctx, '7', jx + 4 + i * 3, jy + 10, 2, 6);
+  px(ctx, '6', jx + 2, jy + 20, jw - 4, 1);
   px(ctx, '1', jx + 3, jy + 24, jw - 6, 12);
   for (let yy = jy + 26; yy < jy + 36; yy += 2) px(ctx, '3', jx + 4, yy, jw - 8, 1);
-  return { lights: { x: jx + 2, y: jy + 8, w: jw - 4, h: 13 } };
 }
+
+const JUKEBOX = { x: 252, y: 80, w: 18 };
 
 // ---- 右：本棚と モンステラ ----
 
@@ -456,8 +495,9 @@ function drawMyTable(ctx) {
   drawSprite(ctx, cup, SPOTS.cup.x, SPOTS.cup.y);
 }
 
+
 // 自分の テーブルの 小さな ランプ。夕方から 灯る。
-function drawTableLamp(ctx, t, mask) {
+function drawTableLamp(ctx) {
   const { x } = TABLE_LAMP;
   px(ctx, '1', x - 4, 160, 9, 2);
   px(ctx, '0', x, 146, 1, 14);
@@ -465,63 +505,202 @@ function drawTableLamp(ctx, t, mask) {
   px(ctx, 'h', x - 4, 139, 9, 3);
   px(ctx, 'h', x - 5, 142, 11, 3);
   px(ctx, 'g', x - 5, 144, 11, 1);
-  px(ctx, t.lit ? 'k' : 'b', x - 3, 145, 7, 1);
-  if (t.lit) markRect(mask, { x: x - 3, y: 145, w: 7, h: 1 });
+  px(ctx, 'b', x - 3, 145, 7, 1);
 }
 
-// ---- ランプ ----
-
-function drawPendants(ctx, t, mask) {
+function drawPendants(ctx) {
   for (const p of PENDANTS) {
     const sy = 14 + p.len;
     px(ctx, '0', p.x, 14, 1, p.len);
     px(ctx, 'h', p.x - 3, sy, 7, 1);
     px(ctx, 'h', p.x - 5, sy + 1, 11, 2);
     px(ctx, 'g', p.x - 5, sy + 3, 11, 1);
-    px(ctx, t.lit ? 'k' : 'b', p.x - 2, sy + 4, 5, 1);
-    if (t.lit) markRect(mask, { x: p.x - 2, y: sy + 4, w: 5, h: 1 });
+    px(ctx, 'b', p.x - 2, sy + 4, 5, 1);
   }
 }
 
-function markRect(mask, r) {
-  for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) mask[y * SCENE_W + x] = 1;
+// 本棚に まぎれた 帳面。リボンが 棚板の 下に はみ出ている。
+function drawNotebook(ctx) {
+  const { x, y } = SPOTS.notebook;
+  px(ctx, '8', x, y + 1, 4, 12);
+  px(ctx, '7', x, y + 1, 1, 12);
+  px(ctx, '0', x + 4, y + 1, 1, 12);
+  px(ctx, '6', x, y + 3, 4, 1);
+  px(ctx, 'h', x + 2, y + 13, 1, 4);
 }
 
-export function drawScene(ctx, timeKey, date = new Date()) {
-  const t = TIMES[timeKey];
-  const mask = new Uint8Array(SCENE_W * SCENE_H); // 1 = 光を あてない（外の 景色、灯り そのもの）
-
+// 動かない 部分を まとめて 描く
+function drawRoomLayer(ctx) {
   drawRoom(ctx);
-  drawWindow(ctx, t, mask);
-  const outside = ctx.getImageData(WIN.x, WIN.y, WIN.w, WIN.h).data;
+  drawWindow(ctx);
   drawWindowsill(ctx);
-  drawWallThings(ctx, date);
+  drawWallThings(ctx);
   drawBackBar(ctx);
-  const { lights } = drawCounter(ctx, t);
-  if (t.lit) markRect(mask, lights);
+  drawCounter(ctx);
   drawBookshelf(ctx);
+  drawNotebook(ctx);
   drawWindowTable(ctx);
   drawPothos(ctx);
-  drawPendants(ctx, t, mask);
+  drawPendants(ctx);
   drawMonstera(ctx);
   drawMyTable(ctx);
-  drawTableLamp(ctx, t, mask);
+  drawTableLamp(ctx);
+}
 
-  // 窓の 前に 描いた もの（ゆかし、サボテン、ポトス）には 光を あてる
-  const now = ctx.getImageData(WIN.x, WIN.y, WIN.w, WIN.h).data;
-  for (let j = 0; j < WIN.h; j++) {
-    for (let i = 0; i < WIN.w; i++) {
-      const o = (j * WIN.w + i) * 4;
-      if (now[o] !== outside[o] || now[o + 1] !== outside[o + 1] || now[o + 2] !== outside[o + 2]) {
-        mask[(WIN.y + j) * SCENE_W + WIN.x + i] = 0;
-      }
+// ---- 時間で 起きる こと ----
+
+function hash(n) {
+  const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+// period 秒ごとに chance の 確率で、duration 秒 続く できごと。
+// 起きている 最中なら 進み具合（0〜1）、そうでなければ false。本当の 時刻から 決まるので、誰が いつ 見ても 同じ。
+export function happening(s, period, duration, chance, salt = 0) {
+  const slot = Math.floor(s / period);
+  if (hash(slot * 13 + salt * 101) > chance) return false;
+  const start = slot * period + hash(slot * 7 + salt * 31 + 1) * (period - duration);
+  const p = (s - start) / duration;
+  return p >= 0 && p < 1 ? p : false;
+}
+
+// おくのさんの 一日（docs/characters.md）
+export const ACTIVITIES = {
+  utatane: 'うたた寝',
+  migaku: 'カップを磨く',
+  yomu: '本を読む',
+  nagameru: '窓の外を見る',
+  chizu: '空想地図を描く',
+};
+
+export function okunoActivity(date) {
+  const h = date.getHours();
+  if (h < 5) return 'utatane';
+  if (h < 10) return 'migaku';
+  if (h < 16) return 'yomu';
+  if (h < 19) return 'nagameru';
+  return 'chizu';
+}
+
+function drawOkuno(ctx, date, s) {
+  const { x, y } = SPOTS.okuno;
+  const act = okunoActivity(date);
+  if (act === 'migaku') {
+    drawSprite(ctx, okuno, x, y);
+    const sway = Math.round(Math.sin(s * 2.5) * 1.5);
+    px(ctx, 'c', x + 4 + sway, y + 12, 4, 3);
+    px(ctx, '9', x + 4 + sway, y + 12, 4, 1);
+    px(ctx, '8', x + 3 - sway, y + 13, 3, 2); // ふきん
+  } else if (act === 'yomu') {
+    drawSprite(ctx, okunoDown, x, y);
+    px(ctx, 'g', x + 2, y + 11, 8, 4);
+    px(ctx, '9', x + 3, y + 11, 3, 3);
+    px(ctx, '8', x + 6, y + 11, 3, 3);
+    const p = happening(s, 25, 0.75, 1, 1);
+    if (p !== false) px(ctx, '9', x + 6 - Math.floor(p * 3), y + 10, 1, 4); // ページを めくる
+  } else if (act === 'nagameru') {
+    // ゆかしと 同じ ほうを 見ている。ときどき 店の 中に 目を もどす
+    drawSprite(ctx, happening(s, 40, 5, 0.5, 2) !== false ? okuno : okunoLook, x, y);
+  } else if (act === 'chizu') {
+    drawSprite(ctx, okunoDown, x, y);
+    px(ctx, '9', x - 1, 96, 13, 2);
+    const pen = Math.round(Math.sin(s * 1.7) * 3 + Math.sin(s * 4.1));
+    px(ctx, 'q', x + 6 + pen, 94, 2, 1);
+    px(ctx, '0', x + 7 + pen, 95, 1, 1);
+  } else {
+    drawSprite(ctx, okunoDown, x, y);
+    const p = (s % 5) / 5;
+    if (p < 0.8) {
+      const zx = x + 11 + Math.floor(p * 3), zy = y - 1 - Math.floor(p * 8);
+      px(ctx, 'c', zx, zy, 3, 1); px(ctx, 'c', zx + 1, zy + 1); px(ctx, 'c', zx, zy + 2, 3, 1);
     }
   }
+}
 
-  light(ctx, SCENE_W, SCENE_H, {
-    ambient: t.ambient,
-    lamps: t.lamps,
-    beams: t.beams,
-    skip: (x, y) => mask[y * SCENE_W + x] === 1,
-  });
+function drawYukashi(ctx, s) {
+  const { x, y } = SPOTS.yukashi;
+  const ear = happening(s, 23, 0.4, 0.8, 7) !== false;
+  drawSprite(ctx, ear ? yukashiEar : yukashi, x, y);
+  // しっぽ：窓台から たれて、ときどき 先を ふる
+  const flick = happening(s, 9, 1.6, 0.8, 5);
+  const off = flick === false ? 0 : [1, 0, -1, 0][Math.floor(flick * 4)];
+  px(ctx, 'i', x + 10, y + 11, 1, 3);
+  px(ctx, '0', x + 11, y + 11, 1, 3);
+  px(ctx, '0', x + 9, y + 12, 1, 2);
+  px(ctx, '1', x + 10 + off, y + 14);
+  px(ctx, '0', x + 9 + off, y + 14);
+  px(ctx, '0', x + 11 + off, y + 14);
+  px(ctx, '0', x + 10 + off, y + 15);
+}
+
+// 灯り そのもの（光の 計算の あとに 描く）
+function drawGlows(ctx, t, s) {
+  if (!t.lit) return;
+  for (const p of PENDANTS) px(ctx, 'k', p.x - 2, 14 + p.len + 4, 5, 1);
+  px(ctx, 'k', TABLE_LAMP.x - 3, 145, 7, 1);
+  const { x, y, w } = JUKEBOX;
+  const beat = Math.floor(s) % 4;
+  for (let i = 0; i < 4; i++) px(ctx, i === beat ? 'j' : 'k', x + 4 + i * 3, y + 10, 2, 6);
+  px(ctx, 'j', x + 2, y + 20, w - 4, 1);
+}
+
+// 湯気：3すじ、ゆらゆら 上って 薄れていく。
+function drawSteam(ctx, x, y, t) {
+  for (let k = 0; k < 3; k++) {
+    for (let y0 = 0; y0 < 14; y0 += 3) {
+      const life = ((y0 + t * 4 + k * 5) % 14) / 14;
+      if (life < 0.15) continue;
+      const yy = y - life * 15;
+      const xx = x + k * 2.5 + Math.sin(yy * 0.45 + t * 1.3 + k * 2) * 1.4;
+      ctx.globalAlpha = [0.5, 0.35, 0.2, 0.08][Math.floor(life * 4)];
+      ctx.fillStyle = COLOR.c;
+      ctx.fillRect(Math.round(xx), Math.round(yy), 1, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---- 店 ----
+
+export class Shop {
+  constructor(ctx) {
+    this.ctx = ctx;
+    this.room = null;
+    this.lightMaps = {};
+  }
+
+  render(date, timeKey = timeKeyOf(date)) {
+    const ctx = this.ctx, t = TIMES[timeKey];
+    const s = date.getTime() / 1000;
+    if (!this.room) {
+      this.room = document.createElement('canvas');
+      this.room.width = SCENE_W; this.room.height = SCENE_H;
+      drawRoomLayer(this.room.getContext('2d'));
+    }
+    this.lightMaps[timeKey] ??= makeLightMap(SCENE_W, SCENE_H, t);
+
+    ctx.clearRect(0, 0, SCENE_W, SCENE_H);
+    drawOutside(ctx, t, timeKey, s);
+    const outside = ctx.getImageData(WIN.x, WIN.y, WIN.w, WIN.h).data;
+    ctx.drawImage(this.room, 0, 0);
+    drawClockHands(ctx, SPOTS.clock.x, SPOTS.clock.y, date);
+    drawOkuno(ctx, date, s);
+    drawYukashi(ctx, s);
+
+    // 窓の 外が そのまま 見えている ところには 光を あてない
+    const skip = new Uint8Array(SCENE_W * SCENE_H);
+    const now = ctx.getImageData(WIN.x, WIN.y, WIN.w, WIN.h).data;
+    for (let j = 0; j < WIN.h; j++) {
+      for (let i = 0; i < WIN.w; i++) {
+        const o = (j * WIN.w + i) * 4;
+        if (now[o] === outside[o] && now[o + 1] === outside[o + 1] && now[o + 2] === outside[o + 2]) {
+          skip[(WIN.y + j) * SCENE_W + WIN.x + i] = 1;
+        }
+      }
+    }
+    applyLightMap(ctx, SCENE_W, SCENE_H, this.lightMaps[timeKey], skip);
+
+    drawGlows(ctx, t, s);
+    drawSteam(ctx, SPOTS.cup.x + 4, SPOTS.cup.y + 1, Math.floor(s * 8) / 8);
+  }
 }

@@ -42,8 +42,8 @@ export const okuno = sprite('おくのさん', mirrorX([
   '0c9333',
 ]));
 
-// ゆかし。窓辺に 座って 外を 見ている 後ろ姿。しっぽが 窓台から たれる。
-export const yukashi = sprite('ゆかし', [
+// ゆかし。窓辺に 座って 外を 見ている 後ろ姿。しっぽは 動くので コードで 描く。
+const yukashiRows = [
   '.0......0...',
   '0i0....010..',
   '0ii0000110..',
@@ -55,10 +55,14 @@ export const yukashi = sprite('ゆかし', [
   '0i999911c0..',
   '0c99991110..',
   '0cc9999cc00.',
-  '.000000000i0',
-  '.........0i0',
-  '.........010',
-  '..........0.',
+  '.000000000..',
+];
+export const yukashi = sprite('ゆかし', yukashiRows);
+// 左耳を ぴくっと 倒した ところ
+export const yukashiEar = sprite('ゆかし（耳ぴく）', [
+  '........0...',
+  '00i....010..',
+  ...yukashiRows.slice(2),
 ]);
 
 // 壁の 時計（針は 時刻に あわせて コードで 描く）。
@@ -91,3 +95,9 @@ export const monsteraLeaf = sprite('モンステラの葉', mirrorX([
   '....eeeeee',
   '.........4',
 ]));
+
+// おくのさんの ちがう 姿勢。
+// 窓の ほうを 見る（目が 左に 寄る）
+export const okunoLook = sprite('おくのさん（窓を見る）', okuno.rows.map((r, y) => (y === 4 ? '0c1qqqq1qqc0' : r)));
+// うつむく（頭が 1ドット 下がる）。本を 読む、地図を 描く、うたた寝
+export const okunoDown = sprite('おくのさん（うつむく）', ['............', ...okuno.rows.slice(0, 8), ...okuno.rows.slice(9)]);

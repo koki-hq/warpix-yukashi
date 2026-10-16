@@ -74,13 +74,11 @@ const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v
 
 // 光を あてる。ambient は 部屋全体の 色、lamps は 点の 光、beams は 窓から 差しこむ 光（多角形）。
 // 明るさは 段階に 丸めて、境目は 網点（ディザ）で ぼかす。なめらかな グラデーションに しないのが ドット絵らしさ。
-export function light(ctx, w, h, { ambient, lamps = [], beams = [], steps = 6, skip }) {
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
+// 光は 動かないので、明るさの 表（lightMap）を 先に 作っておいて、毎コマ それを かけるだけに する。
+export function makeLightMap(w, h, { ambient, lamps = [], beams = [], steps = 6 }) {
+  const map = new Float32Array(w * h * 3);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (skip && skip(x, y)) continue;
-      const o = (y * w + x) * 4;
       const t = BAYER[(y & 3) * 4 + (x & 3)];
       const inBeams = beams.filter(b => inPolygon(x, y, b.poly));
       for (let c = 0; c < 3; c++) {
@@ -91,10 +89,23 @@ export function light(ctx, w, h, { ambient, lamps = [], beams = [], steps = 6, s
           f += L.color[c] * k * k;
         }
         for (const b of inBeams) f += b.color[c];
-        const q = Math.floor(f * steps + t) / steps;
-        d[o + c] = Math.min(255, d[o + c] * q);
+        map[(y * w + x) * 3 + c] = Math.floor(f * steps + t) / steps;
       }
     }
+  }
+  return map;
+}
+
+// skip[i] が 1 の ドットは 光を あてない（外の 景色や、灯り そのもの）。
+export function applyLightMap(ctx, w, h, map, skip) {
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < w * h; i++) {
+    if (skip && skip[i]) continue;
+    const o = i * 4, m = i * 3;
+    d[o] = Math.min(255, d[o] * map[m]);
+    d[o + 1] = Math.min(255, d[o + 1] * map[m + 1]);
+    d[o + 2] = Math.min(255, d[o + 2] * map[m + 2]);
   }
   ctx.putImageData(img, 0, 0);
 }

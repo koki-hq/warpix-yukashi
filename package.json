@@ -1,8 +1,8 @@
-﻿{
+{
   "name": "warpix-yukashi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "喫茶ゆかし",
+  "description": "?????",
   "type": "module",
   "scripts": {
     "serve": "node tools/serve.mjs",
