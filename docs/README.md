@@ -9,6 +9,7 @@
 | [shop.md](shop.md) | 間取り、インテリア、植物、メニュー、音 |
 | [craft.md](craft.md) | 店づくりの決まり。絵、光、音、技術 |
 | [ideas.md](ideas.md) | アイデアの引き出し。やるかどうか未定のもの |
+| [shiori.md](shiori.md) | しおり。作業を止めたところと、次にやること |
 | [versions.md](versions.md) | バージョンの付け方と、前の店に戻る方法 |
 | [../CHANGELOG.md](../CHANGELOG.md) | 店の歩み。バージョンごとに何が変わったか |
 
