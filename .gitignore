@@ -1,2 +1,5 @@
 node_modules/
 shots/
+
+# 手元だけのスキル（公開しない）
+.claude/skills/
